@@ -1,0 +1,1467 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>給与計算・手取り逆算アプリ（令和8年度・協会けんぽ静岡）</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    .tab-btn { transition: all 0.15s ease; }
+    .tab-btn.active {
+      background-color: #0f172a;
+      color: #ffffff;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
+    }
+    .preset-btn { transition: all 0.12s ease; }
+    .preset-btn:hover { background-color: #e2e8f0; }
+    .radio-card { transition: all 0.15s ease; }
+    .radio-card.selected {
+      border-color: #2563eb;
+      background-color: #eff6ff;
+      box-shadow: 0 0 0 1px #2563eb;
+    }
+    .toast {
+      transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+  </style>
+</head>
+<body class="min-h-screen antialiased">
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+          ¥
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold text-slate-900 leading-tight">給与計算・手取り逆算アプリ</h1>
+          <p class="text-xs text-slate-500">令和8年度 協会けんぽ静岡支部 ／ 令和8年分 源泉徴収税額表（月額表）準拠</p>
+        </div>
+      </div>
+      <!-- Navigation Tabs -->
+      <nav class="flex items-center bg-slate-100 p-1 rounded-xl gap-1" role="tablist">
+        <button id="tabBtnForward" type="button" role="tab" aria-selected="true"
+          class="tab-btn active px-3 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold">
+          支給額 → 手取り
+        </button>
+        <button id="tabBtnReverse" type="button" role="tab" aria-selected="false"
+          class="tab-btn px-3 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900">
+          手取り → 支給額逆算
+        </button>
+        <button id="tabBtnRef" type="button" role="tab" aria-selected="false"
+          class="tab-btn px-3 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900">
+          料率・税額表
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+    <!-- ==================== TAB 1: FORWARD CALCULATION ==================== -->
+    <section id="panelForward" class="space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <!-- Input Card -->
+        <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-5">
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wide">支給条件の入力</h2>
+            <button id="btnResetForward" type="button" class="text-xs text-slate-500 hover:text-blue-600 underline">リセット</button>
+          </div>
+
+          <!-- Gross Pay -->
+          <div>
+            <label for="fGross" class="block text-sm font-semibold text-slate-700 mb-1.5">支給額（課税対象・月額）</label>
+            <div class="relative">
+              <input id="fGross" type="number" min="0" max="50000000" step="1000" value="300000"
+                class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 pr-10 text-lg font-bold text-slate-900 tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+              <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-400">円</span>
+            </div>
+            <div class="flex flex-wrap gap-1.5 mt-2">
+              <button type="button" data-f-preset="200000" class="preset-btn px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-medium text-slate-700">20万</button>
+              <button type="button" data-f-preset="250000" class="preset-btn px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-medium text-slate-700">25万</button>
+              <button type="button" data-f-preset="300000" class="preset-btn px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-medium text-slate-700">30万</button>
+              <button type="button" data-f-preset="400000" class="preset-btn px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-medium text-slate-700">40万</button>
+              <button type="button" data-f-preset="500000" class="preset-btn px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-medium text-slate-700">50万</button>
+              <button type="button" data-f-preset="800000" class="preset-btn px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-medium text-slate-700">80万</button>
+            </div>
+          </div>
+
+          <!-- Age & Dependents -->
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label for="fAge" class="block text-sm font-semibold text-slate-700 mb-1.5">年齢</label>
+              <div class="relative">
+                <input id="fAge" type="number" min="15" max="99" step="1" value="35"
+                  class="w-full rounded-xl border border-slate-300 px-3 py-2 pr-9 text-base font-semibold text-slate-900 tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">歳</span>
+              </div>
+              <div id="fAgeBadge" class="mt-1.5 text-[11px] font-medium text-slate-500"></div>
+            </div>
+            <div>
+              <label for="fDeps" class="block text-sm font-semibold text-slate-700 mb-1.5">扶養親族等の数</label>
+              <div class="relative">
+                <input id="fDeps" type="number" min="0" max="20" step="1" value="0"
+                  class="w-full rounded-xl border border-slate-300 px-3 py-2 pr-9 text-base font-semibold text-slate-900 tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">人</span>
+              </div>
+              <p class="mt-1.5 text-[11px] text-slate-400">7人超は1人毎1,610円控除</p>
+            </div>
+          </div>
+
+          <!-- Employment Insurance -->
+          <div>
+            <span class="block text-sm font-semibold text-slate-700 mb-1.5">雇用保険の加入</span>
+            <div class="grid grid-cols-2 gap-2">
+              <label id="fEmpYesCard" class="radio-card selected flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 cursor-pointer text-sm font-semibold text-slate-800">
+                <input id="fEmpYes" type="radio" name="fEmp" value="yes" checked class="sr-only" />
+                <span>加入あり</span>
+              </label>
+              <label id="fEmpNoCard" class="radio-card flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 cursor-pointer text-sm font-semibold text-slate-600">
+                <input id="fEmpNo" type="radio" name="fEmp" value="no" class="sr-only" />
+                <span>加入なし（役員等）</span>
+              </label>
+            </div>
+            <div id="fEmpIndustryWrap" class="mt-2">
+              <label for="fIndustry" class="block text-xs font-medium text-slate-500 mb-1">事業の種類（令和8年度料率）</label>
+              <select id="fIndustry" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="general" selected>一般の事業（本人負担 5/1,000 = 0.5%）</option>
+                <option value="agri">農林水産・清酒製造の事業（本人負担 6/1,000 = 0.6%）</option>
+                <option value="construction">建設の事業（本人負担 6/1,000 = 0.6%）</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Advanced Settings Accordion -->
+          <div class="border-t border-slate-200 pt-3">
+            <button id="fAdvToggle" type="button" class="w-full flex items-center justify-between text-xs font-semibold text-slate-600 hover:text-slate-900 py-1">
+              <span>詳細設定（標準報酬月額の手動指定・甲/乙欄・通勤手当・住民税）</span>
+              <span id="fAdvIcon" class="text-slate-400">▼</span>
+            </button>
+            <div id="fAdvBody" class="hidden mt-3 space-y-3 bg-slate-50 rounded-xl p-3.5 border border-slate-200">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">標準報酬月額の決定方法</label>
+                <div class="grid grid-cols-2 gap-2">
+                  <label class="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer">
+                    <input id="fStdAuto" type="radio" name="fStdMode" value="auto" checked />
+                    <span>支給額から自動判定</span>
+                  </label>
+                  <label class="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer">
+                    <input id="fStdManual" type="radio" name="fStdMode" value="manual" />
+                    <span>現在の等級を指定</span>
+                  </label>
+                </div>
+                <select id="fStdSelect" disabled class="mt-2 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 disabled:bg-slate-100 disabled:text-slate-400"></select>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label for="fTaxCol" class="block text-xs font-semibold text-slate-700 mb-1">税額表区分</label>
+                  <select id="fTaxCol" class="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800">
+                    <option value="kou" selected>甲欄（主たる給与）</option>
+                    <option value="otsu">乙欄（従たる給与）</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="fCommute" class="block text-xs font-semibold text-slate-700 mb-1">非課税通勤手当</label>
+                  <input id="fCommute" type="number" min="0" max="500000" step="1000" value="0"
+                    class="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold tabular-nums text-slate-800" />
+                </div>
+              </div>
+              <div>
+                <label for="fResident" class="block text-xs font-semibold text-slate-700 mb-1">住民税（任意・月額）</label>
+                <input id="fResident" type="number" min="0" max="2000000" step="100" value="0"
+                  class="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold tabular-nums text-slate-800" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Output Area -->
+        <div class="lg:col-span-7 space-y-5">
+          <!-- KPI Cards -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="bg-blue-600 text-white rounded-2xl p-4 shadow-sm sm:col-span-1">
+              <div class="text-xs font-medium text-blue-100">差引支給額（手取り）</div>
+              <div id="fOutNet" class="text-2xl sm:text-3xl font-bold tabular-nums mt-1">¥0</div>
+              <div id="fOutNetRate" class="text-xs text-blue-100 mt-1">手取り率 0.0%</div>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+              <div class="text-xs font-medium text-slate-500">総支給額</div>
+              <div id="fOutTotalGross" class="text-xl sm:text-2xl font-bold text-slate-900 tabular-nums mt-1">¥0</div>
+              <div id="fOutStdInfo" class="text-[11px] text-slate-500 mt-1">標準報酬月額 -</div>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+              <div class="text-xs font-medium text-slate-500">控除合計</div>
+              <div id="fOutTotalDed" class="text-xl sm:text-2xl font-bold text-rose-600 tabular-nums mt-1">¥0</div>
+              <div id="fOutDedRate" class="text-[11px] text-slate-500 mt-1">控除率 0.0%</div>
+            </div>
+          </div>
+
+          <!-- Breakdown Table & Chart -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="px-5 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+              <h3 class="text-sm font-bold text-slate-800">控除内訳（協会けんぽ静岡・令和8年度）</h3>
+              <div class="flex items-center gap-2">
+                <label class="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
+                  <input id="fShowEmployer" type="checkbox" class="rounded border-slate-300" />
+                  <span>会社負担額を表示</span>
+                </label>
+                <button id="btnCopyForward" type="button" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700">
+                  結果をコピー
+                </button>
+              </div>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-slate-50 text-xs text-slate-500 border-b border-slate-200">
+                  <tr>
+                    <th class="text-left font-semibold px-5 py-2.5">項目</th>
+                    <th class="text-left font-semibold px-3 py-2.5">適用率・基準</th>
+                    <th class="text-right font-semibold px-5 py-2.5">本人負担額</th>
+                    <th id="fColEmployerHead" class="hidden text-right font-semibold px-5 py-2.5">会社負担額</th>
+                  </tr>
+                </thead>
+                <tbody id="fBreakdownBody" class="divide-y divide-slate-100"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Chart Card -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-bold text-slate-800">支給額の内訳バランス</h3>
+              <span id="fTaxBracketBadge" class="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600"></span>
+            </div>
+            <div class="relative h-60">
+              <canvas id="fChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 2: REVERSE CALCULATION ==================== -->
+    <section id="panelReverse" class="hidden space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <!-- Reverse Input Card -->
+        <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-5">
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wide">手取り逆算の条件</h2>
+            <button id="btnResetReverse" type="button" class="text-xs text-slate-500 hover:text-blue-600 underline">リセット</button>
+          </div>
+
+          <!-- Target Net Pay -->
+          <div>
+            <label for="rTargetNet" class="block text-sm font-semibold text-slate-700 mb-1.5">目標の手取り額（月額）</label>
+            <div class="relative">
+              <input id="rTargetNet" type="number" min="10000" max="30000000" step="1000" value="240000"
+                class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 pr-10 text-lg font-bold text-slate-900 tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+              <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-400">円</span>
+            </div>
+            <div class="flex flex-wrap gap-1.5 mt-2">
+              <button type="button" data-r-preset="180000" class="preset-btn px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-medium text-slate-700">18万</button>
+              <button type="button" data-r-preset="200000" class="preset-btn px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-medium text-slate-700">20万</button>
+              <button type="button" data-r-preset="240000" class="preset-btn px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-medium text-slate-700">24万</button>
+              <button type="button" data-r-preset="300000" class="preset-btn px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-medium text-slate-700">30万</button>
+              <button type="button" data-r-preset="400000" class="preset-btn px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-medium text-slate-700">40万</button>
+              <button type="button" data-r-preset="500000" class="preset-btn px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-medium text-slate-700">50万</button>
+            </div>
+          </div>
+
+          <!-- Reverse Pattern Selector -->
+          <div>
+            <span class="block text-sm font-semibold text-slate-700 mb-1.5">逆算パターンの選択</span>
+            <div class="space-y-2">
+              <label id="rPatAutoCard" class="radio-card selected block rounded-xl border border-slate-200 p-3 cursor-pointer">
+                <div class="flex items-start gap-2.5">
+                  <input id="rPatAuto" type="radio" name="rPattern" value="auto" checked class="mt-0.5 accent-blue-600" />
+                  <div>
+                    <div class="text-sm font-bold text-slate-900">標準報酬月額も自動計算して逆算</div>
+                    <p class="text-xs text-slate-500 mt-0.5">新規採用・役員報酬改定など、逆算された支給額に対応する標準報酬月額等級で社会保険料も連動計算します。</p>
+                  </div>
+                </div>
+              </label>
+              <label id="rPatFixedCard" class="radio-card block rounded-xl border border-slate-200 p-3 cursor-pointer">
+                <div class="flex items-start gap-2.5">
+                  <input id="rPatFixed" type="radio" name="rPattern" value="fixed" class="mt-0.5 accent-blue-600" />
+                  <div>
+                    <div class="text-sm font-bold text-slate-900">現在の標準報酬月額を使用して逆算</div>
+                    <p class="text-xs text-slate-500 mt-0.5">定時決定済みなど、今月の社会保険料（健保・厚年・支援金）を固定し、雇用保険と所得税を連動させて逆算します。</p>
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Current Standard Monthly Remuneration (for Fixed Pattern & Comparison) -->
+          <div id="rFixedStdBox" class="rounded-xl bg-slate-50 border border-slate-200 p-3.5">
+            <label for="rFixedStd" class="block text-xs font-bold text-slate-700 mb-1.5">現在の標準報酬月額（固定パターン・比較用）</label>
+            <select id="rFixedStd" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+            <p class="text-[11px] text-slate-500 mt-1.5">※ 自動計算パターン選択時も、右側の比較カードで固定パターンとの差額を確認できます。</p>
+          </div>
+
+          <!-- Age & Dependents -->
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label for="rAge" class="block text-sm font-semibold text-slate-700 mb-1.5">年齢</label>
+              <div class="relative">
+                <input id="rAge" type="number" min="15" max="99" step="1" value="35"
+                  class="w-full rounded-xl border border-slate-300 px-3 py-2 pr-9 text-base font-semibold text-slate-900 tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">歳</span>
+              </div>
+              <div id="rAgeBadge" class="mt-1.5 text-[11px] font-medium text-slate-500"></div>
+            </div>
+            <div>
+              <label for="rDeps" class="block text-sm font-semibold text-slate-700 mb-1.5">扶養親族等の数</label>
+              <div class="relative">
+                <input id="rDeps" type="number" min="0" max="20" step="1" value="0"
+                  class="w-full rounded-xl border border-slate-300 px-3 py-2 pr-9 text-base font-semibold text-slate-900 tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">人</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Employment Insurance -->
+          <div>
+            <span class="block text-sm font-semibold text-slate-700 mb-1.5">雇用保険の加入</span>
+            <div class="grid grid-cols-2 gap-2">
+              <label id="rEmpYesCard" class="radio-card selected flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 cursor-pointer text-sm font-semibold text-slate-800">
+                <input id="rEmpYes" type="radio" name="rEmp" value="yes" checked class="sr-only" />
+                <span>加入あり</span>
+              </label>
+              <label id="rEmpNoCard" class="radio-card flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 cursor-pointer text-sm font-semibold text-slate-600">
+                <input id="rEmpNo" type="radio" name="rEmp" value="no" class="sr-only" />
+                <span>加入なし（役員等）</span>
+              </label>
+            </div>
+            <div id="rEmpIndustryWrap" class="mt-2">
+              <select id="rIndustry" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="general" selected>一般の事業（本人負担 5/1,000 = 0.5%）</option>
+                <option value="agri">農林水産・清酒製造の事業（本人負担 6/1,000 = 0.6%）</option>
+                <option value="construction">建設の事業（本人負担 6/1,000 = 0.6%）</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Reverse Advanced -->
+          <div class="border-t border-slate-200 pt-3">
+            <button id="rAdvToggle" type="button" class="w-full flex items-center justify-between text-xs font-semibold text-slate-600 hover:text-slate-900 py-1">
+              <span>詳細設定（甲/乙欄・非課税通勤手当・住民税）</span>
+              <span id="rAdvIcon" class="text-slate-400">▼</span>
+            </button>
+            <div id="rAdvBody" class="hidden mt-3 space-y-3 bg-slate-50 rounded-xl p-3.5 border border-slate-200">
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label for="rTaxCol" class="block text-xs font-semibold text-slate-700 mb-1">税額表区分</label>
+                  <select id="rTaxCol" class="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800">
+                    <option value="kou" selected>甲欄（主たる給与）</option>
+                    <option value="otsu">乙欄（従たる給与）</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="rCommute" class="block text-xs font-semibold text-slate-700 mb-1">非課税通勤手当</label>
+                  <input id="rCommute" type="number" min="0" max="500000" step="1000" value="0"
+                    class="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold tabular-nums text-slate-800" />
+                </div>
+              </div>
+              <div>
+                <label for="rResident" class="block text-xs font-semibold text-slate-700 mb-1">住民税（任意・月額）</label>
+                <input id="rResident" type="number" min="0" max="2000000" step="100" value="0"
+                  class="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold tabular-nums text-slate-800" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Reverse Output Area -->
+        <div class="lg:col-span-7 space-y-5">
+          <!-- Primary Result Banner -->
+          <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-5 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span id="rModePill" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-200 border border-blue-400/30"></span>
+              <span id="rExactStatus" class="text-xs font-semibold px-2.5 py-0.5 rounded-full"></span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+              <div>
+                <div class="text-xs text-slate-300">必要な支給額（課税対象）</div>
+                <div id="rOutGross" class="text-2xl sm:text-3xl font-bold tabular-nums mt-0.5 text-white">¥0</div>
+              </div>
+              <div>
+                <div class="text-xs text-slate-300">検算手取り額</div>
+                <div id="rOutActualNet" class="text-xl sm:text-2xl font-bold tabular-nums mt-1 text-emerald-300">¥0</div>
+                <div id="rOutDiff" class="text-[11px] text-slate-300 mt-0.5">目標差額 ¥0</div>
+              </div>
+              <div>
+                <div class="text-xs text-slate-300">控除合計</div>
+                <div id="rOutTotalDed" class="text-xl sm:text-2xl font-bold tabular-nums mt-1 text-rose-300">¥0</div>
+                <div id="rOutStdInfo" class="text-[11px] text-slate-300 mt-0.5">標準報酬月額 -</div>
+              </div>
+            </div>
+            <div id="rNoteBox" class="hidden mt-3 text-xs bg-amber-500/15 border border-amber-400/30 text-amber-100 rounded-xl px-3.5 py-2.5"></div>
+            <div class="flex flex-wrap gap-2 mt-4 pt-3 border-t border-slate-700">
+              <button id="btnApplyToForward" type="button" class="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white">
+                この支給額を順計算タブへ転記
+              </button>
+              <button id="btnCopyReverse" type="button" class="px-3.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-semibold text-slate-100">
+                逆算結果をコピー
+              </button>
+            </div>
+          </div>
+
+          <!-- Pattern A vs Pattern B Comparison Card -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wide">2パターンの逆算結果比較</h3>
+              <span id="rCmpDiffBadge" class="text-xs font-semibold text-slate-600"></span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div id="rCmpAutoCard" class="rounded-xl border border-slate-200 p-3.5 cursor-pointer hover:border-blue-400">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-slate-700">標準報酬月額を自動計算</span>
+                  <span id="rCmpAutoTag" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">選択中</span>
+                </div>
+                <div id="rCmpAutoGross" class="text-xl font-bold text-slate-900 tabular-nums mt-1.5">¥0</div>
+                <div id="rCmpAutoMeta" class="text-[11px] text-slate-500 mt-1">-</div>
+              </div>
+              <div id="rCmpFixedCard" class="rounded-xl border border-slate-200 p-3.5 cursor-pointer hover:border-blue-400">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-slate-700">現在の標準報酬月額で固定</span>
+                  <span id="rCmpFixedTag" class="hidden text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">選択中</span>
+                </div>
+                <div id="rCmpFixedGross" class="text-xl font-bold text-slate-900 tabular-nums mt-1.5">¥0</div>
+                <div id="rCmpFixedMeta" class="text-[11px] text-slate-500 mt-1">-</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Reverse Breakdown Table -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
+              <h3 class="text-sm font-bold text-slate-800">逆算結果の控除内訳</h3>
+              <span id="rTaxBracketBadge" class="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600"></span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-slate-50 text-xs text-slate-500 border-b border-slate-200">
+                  <tr>
+                    <th class="text-left font-semibold px-5 py-2.5">項目</th>
+                    <th class="text-left font-semibold px-3 py-2.5">適用率・基準</th>
+                    <th class="text-right font-semibold px-5 py-2.5">本人負担額</th>
+                  </tr>
+                </thead>
+                <tbody id="rBreakdownBody" class="divide-y divide-slate-100"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Reverse Chart -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <h3 class="text-sm font-bold text-slate-800 mb-3">逆算支給額の構成比</h3>
+            <div class="relative h-56">
+              <canvas id="rChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 3: REFERENCE TABLES ==================== -->
+    <section id="panelRef" class="hidden space-y-6">
+      <!-- Rates Summary -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div class="bg-white rounded-2xl border border-slate-200 p-4">
+          <div class="text-xs font-semibold text-slate-500">健康保険料率（静岡支部）</div>
+          <div class="text-2xl font-bold text-slate-900 tabular-nums mt-1">9.61%</div>
+          <div class="text-xs text-slate-500 mt-0.5">本人負担 4.805%（令和8年3月分〜）</div>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 p-4">
+          <div class="text-xs font-semibold text-slate-500">介護保険料率（40〜64歳）</div>
+          <div class="text-2xl font-bold text-slate-900 tabular-nums mt-1">1.62%</div>
+          <div class="text-xs text-slate-500 mt-0.5">本人負担 0.81%（健保込 11.23%）</div>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 p-4">
+          <div class="text-xs font-semibold text-slate-500">子ども・子育て支援金率</div>
+          <div class="text-2xl font-bold text-slate-900 tabular-nums mt-1">0.23%</div>
+          <div class="text-xs text-slate-500 mt-0.5">本人負担 0.115%（令和8年4月分〜）</div>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 p-4">
+          <div class="text-xs font-semibold text-slate-500">厚生年金 / 雇用保険（一般）</div>
+          <div class="text-2xl font-bold text-slate-900 tabular-nums mt-1">18.3% / 0.5%</div>
+          <div class="text-xs text-slate-500 mt-0.5">厚年本人 9.15% ／ 雇保本人 5/1,000</div>
+        </div>
+      </div>
+
+      <!-- NTA Monthly Tax Table Lookup -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-sm font-bold text-slate-900">令和8年分 給与所得の源泉徴収税額表（月額表）クイック検索</h2>
+            <p class="text-xs text-slate-500 mt-0.5">社会保険料等控除後の給与等の金額を入力すると、該当する月額表の税額（甲欄0〜7人・乙欄）を表示します。</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <input id="refTaxInput" type="number" min="0" max="10000000" step="1000" value="250000"
+              class="w-40 rounded-xl border border-slate-300 px-3 py-1.5 text-sm font-bold tabular-nums text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <span class="text-xs text-slate-500">円</span>
+          </div>
+        </div>
+        <div id="refTaxResult" class="overflow-x-auto"></div>
+      </div>
+
+      <!-- Shizuoka 50-Grade Table -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-sm font-bold text-slate-900">協会けんぽ静岡支部 令和8年度 保険料額表（全50等級・本人負担折半額）</h2>
+            <p class="text-xs text-slate-500 mt-0.5">給与控除時の端数処理は「50銭以下切捨て・50銭超切上げ」で計算されます。</p>
+          </div>
+          <input id="refGradeFilter" type="text" placeholder="等級や金額で絞込（例: 300,000）"
+            class="w-60 rounded-xl border border-slate-300 px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div class="overflow-x-auto max-h-96 overflow-y-auto">
+          <table class="w-full text-xs">
+            <thead class="bg-slate-50 text-slate-600 sticky top-0 border-b border-slate-200">
+              <tr>
+                <th class="text-left font-semibold px-4 py-2.5">等級(厚年)</th>
+                <th class="text-right font-semibold px-3 py-2.5">標準報酬月額</th>
+                <th class="text-center font-semibold px-3 py-2.5">報酬月額の範囲</th>
+                <th class="text-right font-semibold px-3 py-2.5">健保(介護無)</th>
+                <th class="text-right font-semibold px-3 py-2.5">健保(介護有)</th>
+                <th class="text-right font-semibold px-3 py-2.5">子ども支援金</th>
+                <th class="text-right font-semibold px-4 py-2.5">厚生年金</th>
+              </tr>
+            </thead>
+            <tbody id="refGradeBody" class="divide-y divide-slate-100 tabular-nums"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Sources -->
+      <div class="bg-slate-100 rounded-2xl p-4 text-xs text-slate-600 space-y-1">
+        <div class="font-bold text-slate-700">適用基準・出典</div>
+        <p>・健康保険・介護保険・子ども・子育て支援金・厚生年金：全国健康保険協会（協会けんぽ）静岡支部「令和8年3月分（4月納付分）からの健康保険・厚生年金保険の保険料額表」（子ども・子育て支援金は令和8年4月分〜適用）</p>
+        <p>・雇用保険：厚生労働省「令和8（2026）年度 雇用保険料率のご案内」（令和8年4月1日〜令和9年3月31日）</p>
+        <p>・源泉所得税：国税庁「令和8年分 給与所得の源泉徴収税額表（月額表）」</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Toast -->
+  <div id="toast" class="toast fixed bottom-5 right-5 z-50 pointer-events-none opacity-0 translate-y-2 bg-slate-900 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg">
+    コピーしました
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. VERIFIED OFFICIAL DATA (令和8年度 協会けんぽ静岡支部 & 国税庁 令和8年分月額表)
+    // =========================================================================
+    const SHIZUOKA_GRADES = [{"grade":1,"pGrade":null,"std":58000,"lo":0,"hi":63000,"kenpoHalf":2786.9,"kaigoTotalHalf":3256.7,"kodomoHalf":66.7,"nenkinHalf":null},{"grade":2,"pGrade":null,"std":68000,"lo":63000,"hi":73000,"kenpoHalf":3267.4,"kaigoTotalHalf":3818.2,"kodomoHalf":78.2,"nenkinHalf":null},{"grade":3,"pGrade":null,"std":78000,"lo":73000,"hi":83000,"kenpoHalf":3747.9,"kaigoTotalHalf":4379.7,"kodomoHalf":89.7,"nenkinHalf":null},{"grade":4,"pGrade":1,"std":88000,"lo":83000,"hi":93000,"kenpoHalf":4228.4,"kaigoTotalHalf":4941.2,"kodomoHalf":101.2,"nenkinHalf":8052.0},{"grade":5,"pGrade":2,"std":98000,"lo":93000,"hi":101000,"kenpoHalf":4708.9,"kaigoTotalHalf":5502.7,"kodomoHalf":112.7,"nenkinHalf":8967.0},{"grade":6,"pGrade":3,"std":104000,"lo":101000,"hi":107000,"kenpoHalf":4997.2,"kaigoTotalHalf":5839.6,"kodomoHalf":119.6,"nenkinHalf":9516.0},{"grade":7,"pGrade":4,"std":110000,"lo":107000,"hi":114000,"kenpoHalf":5285.5,"kaigoTotalHalf":6176.5,"kodomoHalf":126.5,"nenkinHalf":10065.0},{"grade":8,"pGrade":5,"std":118000,"lo":114000,"hi":122000,"kenpoHalf":5669.9,"kaigoTotalHalf":6625.7,"kodomoHalf":135.7,"nenkinHalf":10797.0},{"grade":9,"pGrade":6,"std":126000,"lo":122000,"hi":130000,"kenpoHalf":6054.3,"kaigoTotalHalf":7074.9,"kodomoHalf":144.9,"nenkinHalf":11529.0},{"grade":10,"pGrade":7,"std":134000,"lo":130000,"hi":138000,"kenpoHalf":6438.7,"kaigoTotalHalf":7524.1,"kodomoHalf":154.1,"nenkinHalf":12261.0},{"grade":11,"pGrade":8,"std":142000,"lo":138000,"hi":146000,"kenpoHalf":6823.1,"kaigoTotalHalf":7973.3,"kodomoHalf":163.3,"nenkinHalf":12993.0},{"grade":12,"pGrade":9,"std":150000,"lo":146000,"hi":155000,"kenpoHalf":7207.5,"kaigoTotalHalf":8422.5,"kodomoHalf":172.5,"nenkinHalf":13725.0},{"grade":13,"pGrade":10,"std":160000,"lo":155000,"hi":165000,"kenpoHalf":7688.0,"kaigoTotalHalf":8984.0,"kodomoHalf":184.0,"nenkinHalf":14640.0},{"grade":14,"pGrade":11,"std":170000,"lo":165000,"hi":175000,"kenpoHalf":8168.5,"kaigoTotalHalf":9545.5,"kodomoHalf":195.5,"nenkinHalf":15555.0},{"grade":15,"pGrade":12,"std":180000,"lo":175000,"hi":185000,"kenpoHalf":8649.0,"kaigoTotalHalf":10107.0,"kodomoHalf":207.0,"nenkinHalf":16470.0},{"grade":16,"pGrade":13,"std":190000,"lo":185000,"hi":195000,"kenpoHalf":9129.5,"kaigoTotalHalf":10668.5,"kodomoHalf":218.5,"nenkinHalf":17385.0},{"grade":17,"pGrade":14,"std":200000,"lo":195000,"hi":210000,"kenpoHalf":9610.0,"kaigoTotalHalf":11230.0,"kodomoHalf":230.0,"nenkinHalf":18300.0},{"grade":18,"pGrade":15,"std":220000,"lo":210000,"hi":230000,"kenpoHalf":10571.0,"kaigoTotalHalf":12353.0,"kodomoHalf":253.0,"nenkinHalf":20130.0},{"grade":19,"pGrade":16,"std":240000,"lo":230000,"hi":250000,"kenpoHalf":11532.0,"kaigoTotalHalf":13476.0,"kodomoHalf":276.0,"nenkinHalf":21960.0},{"grade":20,"pGrade":17,"std":260000,"lo":250000,"hi":270000,"kenpoHalf":12493.0,"kaigoTotalHalf":14599.0,"kodomoHalf":299.0,"nenkinHalf":23790.0},{"grade":21,"pGrade":18,"std":280000,"lo":270000,"hi":290000,"kenpoHalf":13454.0,"kaigoTotalHalf":15722.0,"kodomoHalf":322.0,"nenkinHalf":25620.0},{"grade":22,"pGrade":19,"std":300000,"lo":290000,"hi":310000,"kenpoHalf":14415.0,"kaigoTotalHalf":16845.0,"kodomoHalf":345.0,"nenkinHalf":27450.0},{"grade":23,"pGrade":20,"std":320000,"lo":310000,"hi":330000,"kenpoHalf":15376.0,"kaigoTotalHalf":17968.0,"kodomoHalf":368.0,"nenkinHalf":29280.0},{"grade":24,"pGrade":21,"std":340000,"lo":330000,"hi":350000,"kenpoHalf":16337.0,"kaigoTotalHalf":19091.0,"kodomoHalf":391.0,"nenkinHalf":31110.0},{"grade":25,"pGrade":22,"std":360000,"lo":350000,"hi":370000,"kenpoHalf":17298.0,"kaigoTotalHalf":20214.0,"kodomoHalf":414.0,"nenkinHalf":32940.0},{"grade":26,"pGrade":23,"std":380000,"lo":370000,"hi":395000,"kenpoHalf":18259.0,"kaigoTotalHalf":21337.0,"kodomoHalf":437.0,"nenkinHalf":34770.0},{"grade":27,"pGrade":24,"std":410000,"lo":395000,"hi":425000,"kenpoHalf":19700.5,"kaigoTotalHalf":23021.5,"kodomoHalf":471.5,"nenkinHalf":37515.0},{"grade":28,"pGrade":25,"std":440000,"lo":425000,"hi":455000,"kenpoHalf":21142.0,"kaigoTotalHalf":24706.0,"kodomoHalf":506.0,"nenkinHalf":40260.0},{"grade":29,"pGrade":26,"std":470000,"lo":455000,"hi":485000,"kenpoHalf":22583.5,"kaigoTotalHalf":26390.5,"kodomoHalf":540.5,"nenkinHalf":43005.0},{"grade":30,"pGrade":27,"std":500000,"lo":485000,"hi":515000,"kenpoHalf":24025.0,"kaigoTotalHalf":28075.0,"kodomoHalf":575.0,"nenkinHalf":45750.0},{"grade":31,"pGrade":28,"std":530000,"lo":515000,"hi":545000,"kenpoHalf":25466.5,"kaigoTotalHalf":29759.5,"kodomoHalf":609.5,"nenkinHalf":48495.0},{"grade":32,"pGrade":29,"std":560000,"lo":545000,"hi":575000,"kenpoHalf":26908.0,"kaigoTotalHalf":31444.0,"kodomoHalf":644.0,"nenkinHalf":51240.0},{"grade":33,"pGrade":30,"std":590000,"lo":575000,"hi":605000,"kenpoHalf":28349.5,"kaigoTotalHalf":33128.5,"kodomoHalf":678.5,"nenkinHalf":53985.0},{"grade":34,"pGrade":31,"std":620000,"lo":605000,"hi":635000,"kenpoHalf":29791.0,"kaigoTotalHalf":34813.0,"kodomoHalf":713.0,"nenkinHalf":56730.0},{"grade":35,"pGrade":32,"std":650000,"lo":635000,"hi":665000,"kenpoHalf":31232.5,"kaigoTotalHalf":36497.5,"kodomoHalf":747.5,"nenkinHalf":59475.0},{"grade":36,"pGrade":null,"std":680000,"lo":665000,"hi":695000,"kenpoHalf":32674.0,"kaigoTotalHalf":38182.0,"kodomoHalf":782.0,"nenkinHalf":null},{"grade":37,"pGrade":null,"std":710000,"lo":695000,"hi":730000,"kenpoHalf":34115.5,"kaigoTotalHalf":39866.5,"kodomoHalf":816.5,"nenkinHalf":null},{"grade":38,"pGrade":null,"std":750000,"lo":730000,"hi":770000,"kenpoHalf":36037.5,"kaigoTotalHalf":42112.5,"kodomoHalf":862.5,"nenkinHalf":null},{"grade":39,"pGrade":null,"std":790000,"lo":770000,"hi":810000,"kenpoHalf":37959.5,"kaigoTotalHalf":44358.5,"kodomoHalf":908.5,"nenkinHalf":null},{"grade":40,"pGrade":null,"std":830000,"lo":810000,"hi":855000,"kenpoHalf":39881.5,"kaigoTotalHalf":46604.5,"kodomoHalf":954.5,"nenkinHalf":null},{"grade":41,"pGrade":null,"std":880000,"lo":855000,"hi":905000,"kenpoHalf":42284.0,"kaigoTotalHalf":49412.0,"kodomoHalf":1012.0,"nenkinHalf":null},{"grade":42,"pGrade":null,"std":930000,"lo":905000,"hi":955000,"kenpoHalf":44686.5,"kaigoTotalHalf":52219.5,"kodomoHalf":1069.5,"nenkinHalf":null},{"grade":43,"pGrade":null,"std":980000,"lo":955000,"hi":1005000,"kenpoHalf":47089.0,"kaigoTotalHalf":55027.0,"kodomoHalf":1127.0,"nenkinHalf":null},{"grade":44,"pGrade":null,"std":1030000,"lo":1005000,"hi":1055000,"kenpoHalf":49491.5,"kaigoTotalHalf":57834.5,"kodomoHalf":1184.5,"nenkinHalf":null},{"grade":45,"pGrade":null,"std":1090000,"lo":1055000,"hi":1115000,"kenpoHalf":52374.5,"kaigoTotalHalf":61203.5,"kodomoHalf":1253.5,"nenkinHalf":null},{"grade":46,"pGrade":null,"std":1150000,"lo":1115000,"hi":1175000,"kenpoHalf":55257.5,"kaigoTotalHalf":64572.5,"kodomoHalf":1322.5,"nenkinHalf":null},{"grade":47,"pGrade":null,"std":1210000,"lo":1175000,"hi":1235000,"kenpoHalf":58140.5,"kaigoTotalHalf":67941.5,"kodomoHalf":1391.5,"nenkinHalf":null},{"grade":48,"pGrade":null,"std":1270000,"lo":1235000,"hi":1295000,"kenpoHalf":61023.5,"kaigoTotalHalf":71310.5,"kodomoHalf":1460.5,"nenkinHalf":null},{"grade":49,"pGrade":null,"std":1330000,"lo":1295000,"hi":1355000,"kenpoHalf":63906.5,"kaigoTotalHalf":74679.5,"kodomoHalf":1529.5,"nenkinHalf":null},{"grade":50,"pGrade":null,"std":1390000,"lo":1355000,"hi":null,"kenpoHalf":66789.5,"kaigoTotalHalf":78048.5,"kodomoHalf":1598.5,"nenkinHalf":null}];
+    const NTA_R8_ROWS = [[105000,107000,[170,0,0,0,0,0,0,0],3800],[107000,109000,[280,0,0,0,0,0,0,0],3800],[109000,111000,[380,0,0,0,0,0,0,0],3900],[111000,113000,[480,0,0,0,0,0,0,0],4000],[113000,115000,[580,0,0,0,0,0,0,0],4100],[115000,117000,[680,0,0,0,0,0,0,0],4100],[117000,119000,[790,0,0,0,0,0,0,0],4200],[119000,121000,[890,0,0,0,0,0,0,0],4300],[121000,123000,[990,0,0,0,0,0,0,0],4300],[123000,125000,[1090,0,0,0,0,0,0,0],4400],[125000,127000,[1190,0,0,0,0,0,0,0],4700],[127000,129000,[1300,0,0,0,0,0,0,0],5000],[129000,131000,[1400,0,0,0,0,0,0,0],5300],[131000,133000,[1500,0,0,0,0,0,0,0],5500],[133000,135000,[1600,0,0,0,0,0,0,0],5800],[135000,137000,[1710,0,0,0,0,0,0,0],6100],[137000,139000,[1810,190,0,0,0,0,0,0],6400],[139000,141000,[1910,300,0,0,0,0,0,0],6700],[141000,143000,[2010,400,0,0,0,0,0,0],7000],[143000,145000,[2110,500,0,0,0,0,0,0],7400],[145000,147000,[2220,600,0,0,0,0,0,0],7700],[147000,149000,[2320,700,0,0,0,0,0,0],8000],[149000,151000,[2420,810,0,0,0,0,0,0],8300],[151000,153000,[2520,910,0,0,0,0,0,0],8600],[153000,155000,[2620,1010,0,0,0,0,0,0],8900],[155000,157000,[2730,1110,0,0,0,0,0,0],9200],[157000,159000,[2830,1210,0,0,0,0,0,0],9500],[159000,161000,[2910,1300,0,0,0,0,0,0],9800],[161000,163000,[2980,1370,0,0,0,0,0,0],10100],[163000,165000,[3050,1440,0,0,0,0,0,0],10400],[165000,167000,[3120,1510,0,0,0,0,0,0],10700],[167000,169000,[3200,1580,0,0,0,0,0,0],11000],[169000,171000,[3270,1650,0,0,0,0,0,0],11300],[171000,173000,[3340,1730,100,0,0,0,0,0],11500],[173000,175000,[3410,1800,170,0,0,0,0,0],11800],[175000,177000,[3480,1870,250,0,0,0,0,0],12100],[177000,179000,[3550,1940,320,0,0,0,0,0],12500],[179000,181000,[3620,2010,390,0,0,0,0,0],12800],[181000,183000,[3700,2080,460,0,0,0,0,0],13300],[183000,185000,[3770,2150,530,0,0,0,0,0],14000],[185000,187000,[3840,2230,600,0,0,0,0,0],14700],[187000,189000,[3910,2300,670,0,0,0,0,0],15400],[189000,191000,[3980,2370,750,0,0,0,0,0],16100],[191000,193000,[4050,2440,820,0,0,0,0,0],16800],[193000,195000,[4120,2510,890,0,0,0,0,0],17600],[195000,197000,[4200,2580,960,0,0,0,0,0],18300],[197000,199000,[4270,2650,1030,0,0,0,0,0],19000],[199000,201000,[4340,2730,1100,0,0,0,0,0],19700],[201000,203000,[4410,2800,1170,0,0,0,0,0],20400],[203000,205000,[4480,2870,1250,0,0,0,0,0],21000],[205000,207000,[4550,2940,1320,0,0,0,0,0],21700],[207000,209000,[4630,3010,1390,0,0,0,0,0],22500],[209000,211000,[4700,3080,1460,0,0,0,0,0],23000],[211000,213000,[4770,3150,1530,0,0,0,0,0],23600],[213000,215000,[4840,3230,1600,0,0,0,0,0],24100],[215000,217000,[4910,3300,1670,0,0,0,0,0],24700],[217000,219000,[4980,3370,1750,130,0,0,0,0],25300],[219000,221000,[5050,3440,1820,200,0,0,0,0],25800],[221000,224000,[5150,3520,1910,300,0,0,0,0],26400],[224000,227000,[5250,3630,2020,400,0,0,0,0],27500],[227000,230000,[5360,3740,2120,510,0,0,0,0],28500],[230000,233000,[5460,3850,2240,610,0,0,0,0],29500],[233000,236000,[5570,3950,2340,720,0,0,0,0],30500],[236000,239000,[5680,4060,2450,830,0,0,0,0],31500],[239000,242000,[5790,4170,2550,940,0,0,0,0],32600],[242000,245000,[5890,4280,2660,1040,0,0,0,0],33600],[245000,248000,[6000,4380,2770,1150,0,0,0,0],34600],[248000,251000,[6110,4490,2880,1260,0,0,0,0],35500],[251000,254000,[6220,4590,2980,1370,0,0,0,0],36600],[254000,257000,[6320,4710,3090,1470,0,0,0,0],37600],[257000,260000,[6430,4810,3200,1580,0,0,0,0],38600],[260000,263000,[6530,4920,3310,1680,0,0,0,0],39600],[263000,266000,[6650,5020,3410,1800,170,0,0,0],40600],[266000,269000,[6750,5140,3520,1900,290,0,0,0],41700],[269000,272000,[6860,5240,3620,2010,390,0,0,0],42700],[272000,275000,[6960,5350,3740,2110,500,0,0,0],43700],[275000,278000,[7080,5450,3840,2230,600,0,0,0],44700],[278000,281000,[7180,5560,3950,2330,710,0,0,0],45600],[281000,284000,[7290,5670,4050,2440,820,0,0,0],46700],[284000,287000,[7390,5780,4170,2540,930,0,0,0],47800],[287000,290000,[7500,5880,4270,2650,1030,0,0,0],48900],[290000,293000,[7610,5990,4380,2760,1140,0,0,0],50000],[293000,296000,[7720,6100,4480,2870,1250,0,0,0],51300],[296000,299000,[7820,6210,4590,2970,1360,0,0,0],52400],[299000,302000,[7930,6320,4700,3080,1470,0,0,0],53600],[302000,305000,[8060,6440,4820,3210,1590,0,0,0],54500],[305000,308000,[8180,6570,4940,3330,1720,0,0,0],55200],[308000,311000,[8300,6690,5060,3450,1840,210,0,0],56100],[311000,314000,[8550,6810,5190,3570,1960,340,0,0],56900],[314000,317000,[8790,6930,5310,3700,2080,460,0,0],57700],[317000,320000,[9040,7060,5430,3820,2210,580,0,0],58500],[320000,323000,[9280,7180,5550,3940,2330,700,0,0],59500],[323000,326000,[9530,7300,5680,4060,2450,830,0,0],60500],[326000,329000,[9770,7420,5800,4190,2570,950,0,0],61600],[329000,332000,[10020,7550,5920,4310,2700,1070,0,0],62600],[332000,335000,[10260,7670,6040,4430,2820,1190,0,0],63700],[335000,338000,[10510,7790,6170,4550,2940,1320,0,0],64700],[338000,341000,[10750,7910,6290,4680,3060,1440,0,0],65800],[341000,344000,[11000,8040,6410,4800,3190,1560,0,0],66800],[344000,347000,[11240,8160,6530,4920,3310,1680,0,0],67800],[347000,350000,[11490,8280,6660,5040,3430,1810,190,0],68800],[350000,353000,[11730,8500,6780,5170,3550,1930,320,0],69800],[353000,356000,[11980,8750,6900,5290,3680,2050,440,0],70900],[356000,359000,[12220,9000,7020,5410,3800,2170,560,0],71900],[359000,362000,[12470,9240,7150,5530,3920,2300,680,0],72900],[362000,365000,[12710,9490,7270,5660,4040,2420,810,0],73900],[365000,368000,[12960,9730,7390,5780,4170,2540,930,0],74900],[368000,371000,[13200,9980,7510,5900,4290,2660,1050,0],76000],[371000,374000,[13450,10220,7640,6020,4410,2790,1170,0],76900],[374000,377000,[13690,10470,7760,6150,4530,2910,1300,0],77800],[377000,380000,[13940,10710,7880,6270,4660,3030,1420,0],78700],[380000,383000,[14180,10960,8000,6390,4780,3150,1540,0],79600],[383000,386000,[14430,11200,8130,6510,4900,3280,1660,0],80600],[386000,389000,[14670,11450,8250,6640,5020,3400,1790,170],82000],[389000,392000,[14920,11690,8450,6760,5150,3520,1910,300],83600],[392000,395000,[15160,11940,8700,6880,5270,3640,2030,420],85400],[395000,398000,[15410,12180,8940,7000,5390,3770,2150,540],87100],[398000,401000,[15650,12430,9190,7130,5510,3890,2280,660],88700],[401000,404000,[15900,12670,9430,7250,5640,4010,2400,790],90500],[404000,407000,[16140,12920,9680,7370,5760,4140,2520,910],92200],[407000,410000,[16390,13160,9920,7490,5880,4260,2640,1030],93800],[410000,413000,[16630,13410,10170,7620,6000,4380,2770,1150],95600],[413000,416000,[16880,13650,10410,7740,6130,4500,2890,1280],97300],[416000,419000,[17120,13900,10660,7860,6250,4630,3010,1400],98900],[419000,422000,[17370,14140,10900,7980,6370,4750,3130,1520],100700],[422000,425000,[17610,14390,11150,8110,6490,4870,3260,1640],102400],[425000,428000,[17860,14630,11390,8230,6620,4990,3380,1770],104000],[428000,431000,[18100,14880,11640,8400,6740,5120,3500,1890],105800],[431000,434000,[18350,15120,11880,8650,6860,5240,3620,2010],107500],[434000,437000,[18590,15370,12130,8890,6980,5360,3750,2130],109100],[437000,440000,[18840,15610,12370,9140,7110,5480,3870,2260],110900],[440000,443000,[19080,15860,12620,9380,7230,5610,3990,2380],112600],[443000,446000,[19330,16100,12860,9630,7350,5730,4110,2500],114200],[446000,449000,[19570,16350,13110,9870,7470,5850,4240,2620],116000],[449000,452000,[19860,16590,13350,10120,7600,5970,4360,2750],117600],[452000,455000,[20350,16840,13600,10360,7720,6100,4480,2870],119400],[455000,458000,[20840,17080,13840,10610,7840,6220,4600,2990],121100],[458000,461000,[21330,17330,14090,10850,7960,6340,4730,3110],122700],[461000,464000,[21820,17570,14330,11100,8090,6460,4850,3240],124500],[464000,467000,[22310,17820,14580,11340,8210,6590,4970,3360],126200],[467000,470000,[22800,18060,14820,11590,8360,6710,5090,3480],127800],[470000,473000,[23290,18310,15070,11830,8610,6830,5220,3600],129600],[473000,476000,[23780,18550,15320,12080,8850,6950,5340,3730],131200],[476000,479000,[24270,18800,15560,12320,9100,7080,5460,3850],132800],[479000,482000,[24760,19040,15810,12570,9340,7200,5580,3970],134500],[482000,485000,[25250,19290,16050,12810,9590,7320,5710,4090],136100],[485000,488000,[25740,19530,16300,13060,9830,7440,5830,4220],137600],[488000,491000,[26230,19780,16540,13300,10080,7570,5950,4340],139300],[491000,494000,[26720,20260,16790,13550,10320,7690,6070,4460],140900],[494000,497000,[27210,20750,17030,13790,10570,7810,6200,4580],142500],[497000,500000,[27700,21240,17280,14040,10810,7930,6320,4710],144100],[500000,503000,[28190,21730,17520,14280,11060,8060,6440,4830],145700],[503000,506000,[28680,22220,17770,14530,11300,8180,6570,4950],147300],[506000,509000,[29170,22710,18010,14770,11550,8310,6690,5070],149000],[509000,512000,[29660,23200,18260,15020,11790,8560,6810,5200],150500],[512000,515000,[30150,23690,18500,15260,12040,8800,6930,5320],152100],[515000,518000,[30640,24180,18750,15510,12280,9050,7060,5440],153800],[518000,521000,[31130,24670,18990,15750,12530,9290,7180,5560],155400],[521000,524000,[31620,25160,19240,16000,12770,9540,7300,5690],156900],[524000,527000,[32110,25650,19480,16240,13020,9780,7420,5810],158600],[527000,530000,[32600,26140,19730,16490,13260,10030,7550,5930],160200],[530000,533000,[33090,26630,20160,16730,13510,10270,7670,6050],161600],[533000,536000,[33580,27120,20650,16980,13750,10520,7790,6180],163200],[536000,539000,[34070,27610,21140,17220,14000,10760,7910,6300],164600],[539000,542000,[34560,28100,21630,17470,14240,11010,8040,6420],166000],[542000,545000,[35050,28590,22130,17710,14490,11250,8160,6540],167500],[545000,548000,[35540,29080,22620,17960,14730,11500,8280,6670],169000],[548000,551000,[36030,29570,23110,18200,14980,11740,8500,6790],170500],[551000,554000,[36570,30110,23650,18480,15240,12020,8780,6920],171900],[554000,557000,[37120,30660,24200,18760,15520,12290,9060,7060],173400],[557000,560000,[37670,31210,24750,19030,15790,12570,9330,7200],174900],[560000,563000,[38230,31760,25300,19310,16070,12840,9610,7330],176300],[563000,566000,[38780,32310,25850,19580,16350,13120,9880,7470],177900],[566000,569000,[39330,32870,26400,19930,16620,13400,10160,7610],179300],[569000,572000,[39880,33420,26950,20480,16900,13670,10430,7750],180700],[572000,575000,[40430,33970,27510,21030,17170,13950,10710,7880],182200],[575000,578000,[40980,34520,28060,21580,17450,14220,10990,8030],183700],[578000,581000,[41530,35070,28610,22140,17720,14500,11260,8160],185200],[581000,584000,[42090,35620,29160,22690,18000,14770,11540,8300],186600],[584000,587000,[42640,36170,29710,23240,18280,15050,11810,8580],188100],[587000,590000,[43190,36730,30260,23790,18550,15330,12090,8850],189600],[590000,593000,[43740,37280,30810,24340,18830,15600,12360,9130],191000],[593000,596000,[44290,37830,31370,24890,19100,15880,12640,9400],192600],[596000,599000,[44840,38380,31920,25440,19380,16150,12920,9680],194000],[599000,602000,[45390,38930,32470,25990,19650,16430,13190,9950],195400],[602000,605000,[45950,39480,33020,26550,20080,16700,13470,10230],197000],[605000,608000,[46500,40030,33570,27100,20630,16980,13740,10510],198400],[608000,611000,[47050,40580,34120,27650,21190,17250,14020,10780],199900],[611000,614000,[47600,41140,34670,28200,21740,17530,14290,11060],201300],[614000,617000,[48150,41690,35220,28750,22290,17810,14570,11330],202800],[617000,620000,[48700,42240,35780,29300,22840,18080,14850,11610],204300],[620000,623000,[49250,42790,36330,29850,23390,18360,15120,11880],205700],[623000,626000,[49800,43340,36880,30410,23940,18630,15400,12160],207300],[626000,629000,[50360,43890,37430,30960,24490,18910,15670,12440],208700],[629000,632000,[50910,44440,37980,31510,25050,19180,15950,12710],210100],[632000,635000,[51460,45000,38530,32060,25600,19460,16220,12990],211700],[635000,638000,[52010,45550,39080,32610,26150,19740,16500,13260],213100],[638000,641000,[52560,46100,39640,33160,26700,20240,16780,13540],214600],[641000,644000,[53110,46650,40190,33710,27250,20790,17050,13810],215900],[644000,647000,[53660,47200,40740,34260,27800,21340,17330,14090],217000],[647000,650000,[54220,47750,41290,34820,28350,21890,17600,14370],218000],[650000,653000,[54770,48300,41840,35370,28900,22440,17880,14640],219000],[653000,656000,[55320,48850,42390,35920,29460,22990,18150,14920],220000],[656000,659000,[55870,49410,42940,36470,30010,23540,18430,15190],221000],[659000,662000,[56420,49960,43490,37020,30560,24100,18700,15470],222100],[662000,665000,[56970,50510,44050,37570,31110,24650,18980,15740],223100],[665000,668000,[57520,51060,44600,38120,31660,25200,19260,16020],224100],[668000,671000,[58070,51610,45150,38680,32210,25750,19530,16300],225000],[671000,674000,[58630,52160,45700,39230,32760,26300,19830,16570],226000],[674000,677000,[59180,52710,46250,39780,33320,26850,20380,16850],227100],[677000,680000,[59730,53270,46800,40330,33870,27400,20930,17120],228100],[680000,683000,[60280,53820,47350,40880,34420,27950,21480,17400],229100],[683000,686000,[60830,54370,47910,41430,34970,28510,22030,17670],230100],[686000,689000,[61380,54920,48460,41980,35520,29060,22580,17950],231500],[689000,692000,[61930,55470,49010,42530,36070,29610,23140,18220],233000],[692000,695000,[62490,56020,49560,43090,36620,30160,23690,18500],234500],[695000,698000,[63040,56570,50110,43640,37170,30710,24240,18780],236100],[698000,701000,[63590,57120,50660,44190,37730,31260,24790,19050],237600],[701000,704000,[64140,57680,51210,44740,38280,31810,25340,19330],239100],[704000,707000,[64690,58230,51760,45290,38830,32370,25890,19600],240800],[707000,710000,[65250,58780,52320,45850,39380,32920,26450,19980],242300],[710000,713000,[65860,59390,52930,46470,39990,33530,27070,20590],243800],[713000,716000,[66480,60000,53540,47080,40610,34140,27680,21210],245300],[716000,719000,[67090,60620,54150,47690,41220,34750,28290,21820],246900],[719000,722000,[67700,61230,54770,48300,41830,35370,28900,22430],248400],[722000,725000,[68320,61840,55380,48920,42440,35980,29520,23040],250000],[725000,728000,[68930,62450,55990,49530,43060,36590,30130,23660],251600],[728000,731000,[69540,63070,56600,50140,43670,37210,30740,24270],253100],[731000,734000,[70150,63680,57220,50750,44280,37820,31350,24880],254600],[734000,737000,[70770,64290,57830,51370,44890,38430,31970,25490],256200],[737000,740000,[71380,64900,58440,51980,45510,39040,32580,26110],257700]];
+
+    // High-income brackets from NTA 令和8年分 給与所得の源泉徴収税額表（月額表）Pages 5-7
+    const NTA_R8_HIGH_KOU = [
+      { min: 740000,  max: 790000,   rate: 0.2042,  base: [71680, 65210, 58750, 52290, 45810, 39350, 32890, 26410] },
+      { min: 790000,  max: 960000,   rate: 0.23483, base: [81890, 75420, 68960, 62500, 56020, 49560, 43100, 36620] },
+      { min: 960000,  max: 1710000,  rate: 0.33693, base: [121820, 115340, 108880, 102420, 95940, 89480, 83020, 76540] },
+      { min: 1710000, max: 2130000,  rate: 0.4084,  base: [374520, 368040, 361580, 355120, 348640, 342180, 335720, 329240] },
+      { min: 2130000, max: 2170000,  rate: 0.4084,  base: [549440, 542970, 536500, 530040, 523570, 517110, 510640, 504170] },
+      { min: 2170000, max: 2210000,  rate: 0.4084,  base: [571220, 564750, 558280, 551820, 545350, 538880, 532420, 525950] },
+      { min: 2210000, max: 2250000,  rate: 0.4084,  base: [593000, 586520, 580060, 573600, 567120, 560660, 554200, 547730] },
+      { min: 2250000, max: 3500000,  rate: 0.4084,  base: [614770, 608300, 601840, 595380, 588900, 582440, 575980, 569500] },
+      { min: 3500000, max: Infinity, rate: 0.45945, base: [1125270, 1118800, 1112340, 1105880, 1099400, 1092940, 1086480, 1080000] }
+    ];
+
+    const EMP_RATES = {
+      general:      { label: '一般の事業',             emp: 0.005, employer: 0.0085 },
+      agri:         { label: '農林水産・清酒製造の事業', emp: 0.006, employer: 0.0095 },
+      construction: { label: '建設の事業',             emp: 0.006, employer: 0.0105 }
+    };
+
+    // =========================================================================
+    // 2. CORE CALCULATION ENGINE
+    // =========================================================================
+
+    // 50銭以下切捨て・50銭超切上げ (給与控除の法定原則)
+    function round50Sen(val) {
+      if (val <= 0) return 0;
+      const scaled = Math.round(val * 100);
+      const rem = scaled % 100;
+      return rem <= 50 ? Math.floor(scaled / 100) : Math.ceil(scaled / 100);
+    }
+
+    function findGradeByRemuneration(remuneration) {
+      for (let i = 0; i < SHIZUOKA_GRADES.length; i++) {
+        const g = SHIZUOKA_GRADES[i];
+        const hi = g.hi === null ? Infinity : g.hi;
+        if (remuneration >= g.lo && remuneration < hi) {
+          return g;
+        }
+      }
+      return SHIZUOKA_GRADES[SHIZUOKA_GRADES.length - 1];
+    }
+
+    function findGradeByNumber(gradeNum) {
+      return SHIZUOKA_GRADES.find(g => g.grade === gradeNum) || SHIZUOKA_GRADES[21];
+    }
+
+    // 厚生年金等級は 4(1)等級(88,000円)〜35(32)等級(650,000円)
+    function getPensionGradeFromHealthGrade(healthGrade) {
+      if (healthGrade.grade <= 4) return SHIZUOKA_GRADES[3];   // 4(1)等級 88,000円
+      if (healthGrade.grade >= 35) return SHIZUOKA_GRADES[34]; // 35(32)等級 650,000円
+      return healthGrade;
+    }
+
+    // 令和8年分 給与所得の源泉徴収税額表（月額表）
+    function calcIncomeTaxR8(taxableAfterSI, deps, taxCol) {
+      const amt = Math.max(0, Math.floor(taxableAfterSI));
+      const d = Math.max(0, Math.floor(deps || 0));
+      const dIdx = Math.min(d, 7);
+      const extraDeps = Math.max(0, d - 7);
+
+      if (taxCol === 'otsu') {
+        if (amt < 105000) {
+          return {
+            tax: Math.floor(amt * 0.03063),
+            bracketLabel: '乙欄：105,000円未満（3.063%）'
+          };
+        }
+        if (amt < 740000) {
+          const row = binarySearchTaxRow(amt);
+          return {
+            tax: row[3],
+            bracketLabel: `乙欄：${row[0].toLocaleString()}円〜${(row[1]-1).toLocaleString()}円`
+          };
+        }
+        if (amt < 1710000) {
+          return {
+            tax: Math.floor(259200 + (amt - 740000) * 0.4084),
+            bracketLabel: '乙欄：740,000円〜1,709,999円（259,200円＋超過額×40.84%）'
+          };
+        }
+        return {
+          tax: Math.floor(655400 + (amt - 1710000) * 0.45945),
+          bracketLabel: '乙欄：1,710,000円以上（655,400円＋超過額×45.945%）'
+        };
+      }
+
+      // 甲欄
+      if (amt < 105000) {
+        return { tax: 0, bracketLabel: '甲欄：105,000円未満（0円）' };
+      }
+      if (amt < 740000) {
+        const row = binarySearchTaxRow(amt);
+        let t = row[2][dIdx];
+        if (extraDeps > 0) t = Math.max(0, t - extraDeps * 1610);
+        return {
+          tax: t,
+          bracketLabel: `甲欄（扶養${d}人）：${row[0].toLocaleString()}円〜${(row[1]-1).toLocaleString()}円`
+        };
+      }
+      // 740,000円以上
+      for (let i = 0; i < NTA_R8_HIGH_KOU.length; i++) {
+        const b = NTA_R8_HIGH_KOU[i];
+        if (amt >= b.min && amt < b.max) {
+          let t = Math.floor(b.base[dIdx] + (amt - b.min) * b.rate);
+          if (extraDeps > 0) t = Math.max(0, t - extraDeps * 1610);
+          const rangeText = b.max === Infinity
+            ? `${b.min.toLocaleString()}円以上`
+            : `${b.min.toLocaleString()}円〜${(b.max-1).toLocaleString()}円`;
+          return {
+            tax: t,
+            bracketLabel: `甲欄（扶養${d}人）：${rangeText}（超過×${(b.rate*100).toFixed(3).replace(/0+$/,'').replace(/\.$/,'')}%）`
+          };
+        }
+      }
+      return { tax: 0, bracketLabel: '-' };
+    }
+
+    function binarySearchTaxRow(amt) {
+      let lo = 0, hi = NTA_R8_ROWS.length - 1;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        const r = NTA_R8_ROWS[mid];
+        if (amt < r[0]) hi = mid - 1;
+        else if (amt >= r[1]) lo = mid + 1;
+        else return r;
+      }
+      return NTA_R8_ROWS[NTA_R8_ROWS.length - 1];
+    }
+
+    function calculatePayroll(params) {
+      const grossTaxable = Math.max(0, Math.floor(params.gross || 0));
+      const commute = Math.max(0, Math.floor(params.commute || 0));
+      const totalGross = grossTaxable + commute;
+      const age = Math.max(0, Math.floor(params.age || 0));
+      const deps = Math.max(0, Math.floor(params.deps || 0));
+      const hasEmp = Boolean(params.hasEmp);
+      const industry = params.industry || 'general';
+      const taxCol = params.taxCol || 'kou';
+      const residentTax = Math.max(0, Math.floor(params.residentTax || 0));
+
+      const healthGrade = params.fixedGrade
+        ? findGradeByNumber(params.fixedGrade)
+        : findGradeByRemuneration(totalGross);
+      const pensionGrade = getPensionGradeFromHealthGrade(healthGrade);
+
+      const isUnder75 = age < 75;
+      const isKaigo = age >= 40 && age < 65;
+      const isUnder70 = age < 70;
+
+      // 健康保険・介護保険（静岡県 9.61% / 介護込 11.23%）
+      let kenpoTotal = 0;
+      let kenpoBase = 0;
+      let kaigoPart = 0;
+      let kenpoEmployer = 0;
+      if (isUnder75 && totalGross > 0) {
+        kenpoBase = round50Sen(healthGrade.kenpoHalf);
+        if (isKaigo) {
+          kenpoTotal = round50Sen(healthGrade.kaigoTotalHalf);
+          kaigoPart = kenpoTotal - kenpoBase;
+          kenpoEmployer = Math.floor(healthGrade.kaigoTotalHalf * 2) - kenpoTotal;
+        } else {
+          kenpoTotal = kenpoBase;
+          kaigoPart = 0;
+          kenpoEmployer = Math.floor(healthGrade.kenpoHalf * 2) - kenpoTotal;
+        }
+      }
+
+      // 子ども・子育て支援金（0.23% 折半 0.115%、令和8年4月分〜）
+      let kodomo = 0;
+      let kodomoEmployer = 0;
+      if (isUnder75 && totalGross > 0) {
+        kodomo = round50Sen(healthGrade.kodomoHalf);
+        kodomoEmployer = Math.floor(healthGrade.kodomoHalf * 2) - kodomo;
+      }
+
+      // 厚生年金保険料（18.300% 折半 9.150%）
+      let nenkin = 0;
+      let nenkinEmployer = 0;
+      if (isUnder70 && totalGross > 0) {
+        nenkin = round50Sen(pensionGrade.nenkinHalf);
+        nenkinEmployer = Math.floor(pensionGrade.nenkinHalf * 2) - nenkin;
+      }
+
+      // 雇用保険料（総支給額 × 労働者負担率、50銭以下切捨て・50銭超切上げ）
+      const empRateObj = EMP_RATES[industry] || EMP_RATES.general;
+      let koyou = 0;
+      let koyouEmployer = 0;
+      if (hasEmp && totalGross > 0) {
+        koyou = round50Sen(totalGross * empRateObj.emp);
+        koyouEmployer = Math.floor(totalGross * empRateObj.employer);
+      }
+
+      const socialInsuranceTotal = kenpoTotal + kodomo + nenkin + koyou;
+      const taxableAfterSI = Math.max(0, grossTaxable - socialInsuranceTotal);
+      const taxRes = calcIncomeTaxR8(taxableAfterSI, deps, taxCol);
+      const incomeTax = taxRes.tax;
+
+      const totalDeductions = socialInsuranceTotal + incomeTax + residentTax;
+      const netPay = totalGross - totalDeductions;
+
+      return {
+        grossTaxable,
+        commute,
+        totalGross,
+        healthGrade,
+        pensionGrade,
+        isUnder75,
+        isKaigo,
+        isUnder70,
+        kenpoBase,
+        kaigoPart,
+        kenpoTotal,
+        kenpoEmployer,
+        kodomo,
+        kodomoEmployer,
+        nenkin,
+        nenkinEmployer,
+        koyou,
+        koyouEmployer,
+        empRateObj,
+        socialInsuranceTotal,
+        taxableAfterSI,
+        incomeTax,
+        taxBracketLabel: taxRes.bracketLabel,
+        residentTax,
+        totalDeductions,
+        netPay
+      };
+    }
+
+    // =========================================================================
+    // 3. EXACT REVERSE CALCULATION ENGINE (Pattern A: Fixed / Pattern B: Auto)
+    // =========================================================================
+
+    function solveFixedGradeRange(targetNet, baseParams, fixedGradeNum, gMin, gMax) {
+      // Binary search to approximate where netPay crosses targetNet
+      let lo = gMin, hi = gMax;
+      while (lo < hi) {
+        const mid = Math.floor((lo + hi) / 2);
+        const res = calculatePayroll({ ...baseParams, gross: mid, fixedGrade: fixedGradeNum });
+        if (res.netPay < targetNet) lo = mid + 1;
+        else hi = mid;
+      }
+
+      const scanLo = Math.max(gMin, lo - 18000);
+      const scanHi = Math.min(gMax, lo + 18000);
+
+      let exactFirst = null;
+      let exactCount = 0;
+      let bestOver = null;  // netPay >= targetNet, smallest diff
+      let bestUnder = null; // netPay < targetNet, smallest diff
+
+      for (let g = scanLo; g <= scanHi; g++) {
+        const res = calculatePayroll({ ...baseParams, gross: g, fixedGrade: fixedGradeNum });
+        const diff = res.netPay - targetNet;
+        if (diff === 0) {
+          if (!exactFirst) exactFirst = res;
+          exactCount++;
+        } else if (diff > 0) {
+          if (!bestOver || diff < (bestOver.netPay - targetNet) || (diff === (bestOver.netPay - targetNet) && g < bestOver.grossTaxable)) {
+            bestOver = res;
+          }
+        } else {
+          if (!bestUnder || (-diff) < (targetNet - bestUnder.netPay)) {
+            bestUnder = res;
+          }
+        }
+      }
+
+      if (exactFirst) {
+        return { exact: true, result: exactFirst, exactCount, bestOver, bestUnder };
+      }
+      const chosen = bestOver || bestUnder || calculatePayroll({ ...baseParams, gross: lo, fixedGrade: fixedGradeNum });
+      return { exact: false, result: chosen, exactCount: 0, bestOver, bestUnder };
+    }
+
+    function reverseCalculateFixed(targetNet, baseParams, fixedGradeNum) {
+      return solveFixedGradeRange(targetNet, baseParams, fixedGradeNum, 0, 50000000);
+    }
+
+    function reverseCalculateAuto(targetNet, baseParams) {
+      const commute = Math.max(0, Math.floor(baseParams.commute || 0));
+      const exactMatches = [];
+      let bestOver = null;
+      let bestUnder = null;
+
+      for (let i = 0; i < SHIZUOKA_GRADES.length; i++) {
+        const gr = SHIZUOKA_GRADES[i];
+        const gMin = Math.max(0, gr.lo - commute);
+        const gMax = gr.hi === null ? 50000000 : (gr.hi - commute - 1);
+        if (gMax < gMin) continue;
+
+        // Quick bounds check with generous margin for tax step jumps
+        const minRes = calculatePayroll({ ...baseParams, gross: gMin, fixedGrade: gr.grade });
+        const maxRes = calculatePayroll({ ...baseParams, gross: Math.min(gMax, gMin + 30000000), fixedGrade: gr.grade });
+
+        if (targetNet < minRes.netPay - 15000) {
+          // Still check minRes as possible bestOver
+          if (minRes.netPay >= targetNet) {
+            if (!bestOver || (minRes.netPay - targetNet) < (bestOver.netPay - targetNet)) bestOver = minRes;
+          }
+          continue;
+        }
+        if (targetNet > maxRes.netPay + 15000) {
+          if (maxRes.netPay < targetNet) {
+            if (!bestUnder || (targetNet - maxRes.netPay) < (targetNet - bestUnder.netPay)) bestUnder = maxRes;
+          }
+          continue;
+        }
+
+        const sol = solveFixedGradeRange(targetNet, baseParams, gr.grade, gMin, gMax);
+        if (sol.exact) {
+          exactMatches.push(sol.result);
+        } else {
+          if (sol.bestOver) {
+            const d = sol.bestOver.netPay - targetNet;
+            if (!bestOver || d < (bestOver.netPay - targetNet) || (d === (bestOver.netPay - targetNet) && sol.bestOver.grossTaxable < bestOver.grossTaxable)) {
+              bestOver = sol.bestOver;
+            }
+          }
+          if (sol.bestUnder) {
+            const d = targetNet - sol.bestUnder.netPay;
+            if (!bestUnder || d < (targetNet - bestUnder.netPay)) {
+              bestUnder = sol.bestUnder;
+            }
+          }
+        }
+      }
+
+      if (exactMatches.length > 0) {
+        exactMatches.sort((a, b) => a.grossTaxable - b.grossTaxable);
+        return {
+          exact: true,
+          result: exactMatches[0],
+          altMatches: exactMatches.slice(1),
+          bestOver: null,
+          bestUnder: null
+        };
+      }
+
+      const chosen = bestOver || bestUnder || calculatePayroll({ ...baseParams, gross: targetNet });
+      return {
+        exact: false,
+        result: chosen,
+        altMatches: [],
+        bestOver,
+        bestUnder
+      };
+    }
+
+    // =========================================================================
+    // 4. UI RENDERING & STATE MANAGEMENT
+    // =========================================================================
+
+    const fmtYen = (n) => '¥' + Math.round(n).toLocaleString('ja-JP');
+    let fChartInstance = null;
+    let rChartInstance = null;
+    let lastForwardResult = null;
+    let lastReverseResult = null;
+
+    function showToast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.remove('opacity-0', 'translate-y-2');
+      el.classList.add('opacity-100', 'translate-y-0');
+      clearTimeout(el._timer);
+      el._timer = setTimeout(() => {
+        el.classList.add('opacity-0', 'translate-y-2');
+        el.classList.remove('opacity-100', 'translate-y-0');
+      }, 2200);
+    }
+
+    function copyText(text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => showToast('計算結果をコピーしました')).catch(() => fallbackCopy(text));
+      } else {
+        fallbackCopy(text);
+      }
+    }
+    function fallbackCopy(text) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); showToast('計算結果をコピーしました'); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+
+    function populateGradeSelects() {
+      const optionsHtml = SHIZUOKA_GRADES.map(g => {
+        const rangeStr = g.hi === null
+          ? `${g.lo.toLocaleString()}円以上`
+          : `${g.lo.toLocaleString()}〜${(g.hi - 1).toLocaleString()}円`;
+        const pg = g.pGrade ? ` / 厚年${g.pGrade}等級` : '';
+        return `<option value="${g.grade}" ${g.grade === 22 ? 'selected' : ''}>${g.grade}等級${pg}：${g.std.toLocaleString()}円（報酬 ${rangeStr}）</option>`;
+      }).join('');
+      document.getElementById('fStdSelect').innerHTML = optionsHtml;
+      document.getElementById('rFixedStd').innerHTML = optionsHtml;
+    }
+
+    function getAgeStatusText(age) {
+      if (age >= 75) return '75歳以上：健保・支援金・厚年 対象外';
+      if (age >= 70) return '70〜74歳：厚生年金 対象外';
+      if (age >= 40 && age < 65) return '40〜64歳：介護保険（1.62%）該当';
+      return '介護保険：対象外（40〜64歳で適用）';
+    }
+
+    function renderBreakdownRows(tbodyEl, res, showEmployer) {
+      const rows = [
+        {
+          name: '健康保険料',
+          sub: res.isUnder75 ? `静岡 9.61%（本人 4.805%） / ${res.healthGrade.grade}等級` : '75歳以上のため対象外',
+          emp: res.kenpoBase,
+          er: res.isKaigo ? Math.round(res.healthGrade.kenpoHalf) : res.kenpoEmployer
+        },
+        {
+          name: '介護保険料',
+          sub: res.isKaigo ? '40〜64歳該当 1.62%（本人 0.81%）※健保合算11.23%で端数処理' : '40〜64歳のみ対象',
+          emp: res.kaigoPart,
+          er: res.isKaigo ? Math.max(0, res.kenpoEmployer - Math.round(res.healthGrade.kenpoHalf)) : 0
+        },
+        {
+          name: '厚生年金保険料',
+          sub: res.isUnder70 ? `18.300%（本人 9.150%） / 厚年${res.pensionGrade.pGrade}等級（${res.pensionGrade.std.toLocaleString()}円）` : '70歳以上のため対象外',
+          emp: res.nenkin,
+          er: res.nenkinEmployer
+        },
+        {
+          name: '子ども・子育て支援金',
+          sub: res.isUnder75 ? `0.23%（本人 0.115%） / 令和8年4月分〜` : '75歳以上のため対象外',
+          emp: res.kodomo,
+          er: res.kodomoEmployer
+        },
+        {
+          name: '雇用保険料',
+          sub: res.koyou > 0 ? `${res.empRateObj.label}（本人 ${(res.empRateObj.emp * 1000).toFixed(1).replace(/\.0$/, '')}/1,000）` : '未加入',
+          emp: res.koyou,
+          er: res.koyouEmployer
+        }
+      ];
+
+      let html = rows.map(r => `
+        <tr class="hover:bg-slate-50/70">
+          <td class="px-5 py-2.5 font-medium text-slate-800">${r.name}</td>
+          <td class="px-3 py-2.5 text-xs text-slate-500">${r.sub}</td>
+          <td class="px-5 py-2.5 text-right font-semibold text-slate-900 tabular-nums">${fmtYen(r.emp)}</td>
+          ${showEmployer ? `<td class="px-5 py-2.5 text-right text-slate-600 tabular-nums">${fmtYen(r.er)}</td>` : ''}
+        </tr>
+      `).join('');
+
+      const erSITotal = res.kenpoEmployer + res.kodomoEmployer + res.nenkinEmployer + res.koyouEmployer;
+      html += `
+        <tr class="bg-slate-50/90 font-semibold">
+          <td class="px-5 py-2.5 text-slate-800">社会保険料合計</td>
+          <td class="px-3 py-2.5 text-xs text-slate-500">課税対象額（控除後）：${fmtYen(res.taxableAfterSI)}</td>
+          <td class="px-5 py-2.5 text-right text-slate-900 tabular-nums">${fmtYen(res.socialInsuranceTotal)}</td>
+          ${showEmployer ? `<td class="px-5 py-2.5 text-right text-slate-700 tabular-nums">${fmtYen(erSITotal)}</td>` : ''}
+        </tr>
+        <tr class="hover:bg-slate-50/70">
+          <td class="px-5 py-2.5 font-medium text-slate-800">源泉所得税（月額表）</td>
+          <td class="px-3 py-2.5 text-xs text-slate-500">${res.taxBracketLabel}</td>
+          <td class="px-5 py-2.5 text-right font-semibold text-slate-900 tabular-nums">${fmtYen(res.incomeTax)}</td>
+          ${showEmployer ? `<td class="px-5 py-2.5 text-right text-slate-400">-</td>` : ''}
+        </tr>
+      `;
+
+      if (res.residentTax > 0) {
+        html += `
+          <tr class="hover:bg-slate-50/70">
+            <td class="px-5 py-2.5 font-medium text-slate-800">住民税（特別徴収）</td>
+            <td class="px-3 py-2.5 text-xs text-slate-500">入力値</td>
+            <td class="px-5 py-2.5 text-right font-semibold text-slate-900 tabular-nums">${fmtYen(res.residentTax)}</td>
+            ${showEmployer ? `<td class="px-5 py-2.5 text-right text-slate-400">-</td>` : ''}
+          </tr>
+        `;
+      }
+
+      html += `
+        <tr class="bg-rose-50/60 font-bold">
+          <td class="px-5 py-3 text-rose-900">控除合計</td>
+          <td class="px-3 py-3 text-xs text-rose-700">総支給額 ${fmtYen(res.totalGross)}${res.commute > 0 ? `（うち非課税通勤 ${fmtYen(res.commute)}）` : ''}</td>
+          <td class="px-5 py-3 text-right text-rose-700 tabular-nums">${fmtYen(res.totalDeductions)}</td>
+          ${showEmployer ? `<td class="px-5 py-3 text-right text-slate-700 tabular-nums">${fmtYen(erSITotal)}</td>` : ''}
+        </tr>
+      `;
+      tbodyEl.innerHTML = html;
+    }
+
+    function renderDoughnut(canvasId, existingChart, res) {
+      const ctx = document.getElementById(canvasId).getContext('2d');
+      const labels = ['手取り額', '健康保険・介護保険', '厚生年金', '子ども・子育て支援金', '雇用保険', '源泉所得税'];
+      const data = [
+        Math.max(0, res.netPay),
+        res.kenpoTotal,
+        res.nenkin,
+        res.kodomo,
+        res.koyou,
+        res.incomeTax
+      ];
+      const colors = ['#2563eb', '#0ea5e9', '#6366f1', '#14b8a6', '#f59e0b', '#f43f5e'];
+      if (res.residentTax > 0) {
+        labels.push('住民税');
+        data.push(res.residentTax);
+        colors.push('#8b5cf6');
+      }
+
+      if (existingChart) {
+        existingChart.data.labels = labels;
+        existingChart.data.datasets[0].data = data;
+        existingChart.data.datasets[0].backgroundColor = colors;
+        existingChart.update();
+        return existingChart;
+      }
+
+      return new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{
+            data,
+            backgroundColor: colors,
+            borderWidth: 2,
+            borderColor: '#ffffff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '62%',
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: {
+                boxWidth: 12,
+                padding: 12,
+                font: { size: 11, family: 'Inter, Noto Sans JP, sans-serif' }
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const total = ctx.dataset.data.reduce((a, b) => a + b, 0) || 1;
+                  const pct = ((ctx.parsed / total) * 100).toFixed(1);
+                  return ` ${ctx.label}: ¥${ctx.parsed.toLocaleString()} (${pct}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function updateForward() {
+      const gross = parseInt(document.getElementById('fGross').value, 10) || 0;
+      const age = parseInt(document.getElementById('fAge').value, 10) || 0;
+      const deps = parseInt(document.getElementById('fDeps').value, 10) || 0;
+      const hasEmp = document.getElementById('fEmpYes').checked;
+      const industry = document.getElementById('fIndustry').value;
+      const stdMode = document.getElementById('fStdManual').checked ? 'manual' : 'auto';
+      const fixedGrade = stdMode === 'manual' ? parseInt(document.getElementById('fStdSelect').value, 10) : null;
+      const taxCol = document.getElementById('fTaxCol').value;
+      const commute = parseInt(document.getElementById('fCommute').value, 10) || 0;
+      const residentTax = parseInt(document.getElementById('fResident').value, 10) || 0;
+      const showEmployer = document.getElementById('fShowEmployer').checked;
+
+      document.getElementById('fAgeBadge').textContent = getAgeStatusText(age);
+      document.getElementById('fEmpYesCard').classList.toggle('selected', hasEmp);
+      document.getElementById('fEmpNoCard').classList.toggle('selected', !hasEmp);
+      document.getElementById('fEmpIndustryWrap').classList.toggle('hidden', !hasEmp);
+      document.getElementById('fStdSelect').disabled = stdMode !== 'manual';
+      document.getElementById('fColEmployerHead').classList.toggle('hidden', !showEmployer);
+
+      const res = calculatePayroll({ gross, commute, age, deps, hasEmp, industry, fixedGrade, taxCol, residentTax });
+      lastForwardResult = res;
+
+      const netRate = res.totalGross > 0 ? (res.netPay / res.totalGross * 100).toFixed(1) : '0.0';
+      const dedRate = res.totalGross > 0 ? (res.totalDeductions / res.totalGross * 100).toFixed(1) : '0.0';
+
+      document.getElementById('fOutNet').textContent = fmtYen(res.netPay);
+      document.getElementById('fOutNetRate').textContent = `手取り率 ${netRate}%`;
+      document.getElementById('fOutTotalGross').textContent = fmtYen(res.totalGross);
+      document.getElementById('fOutStdInfo').textContent = `標準報酬月額 ${res.healthGrade.std.toLocaleString()}円（${res.healthGrade.grade}等級）`;
+      document.getElementById('fOutTotalDed').textContent = fmtYen(res.totalDeductions);
+      document.getElementById('fOutDedRate').textContent = `控除率 ${dedRate}%`;
+      document.getElementById('fTaxBracketBadge').textContent = res.taxBracketLabel;
+
+      renderBreakdownRows(document.getElementById('fBreakdownBody'), res, showEmployer);
+      fChartInstance = renderDoughnut('fChart', fChartInstance, res);
+    }
+
+    function updateReverse() {
+      const targetNet = Math.max(0, parseInt(document.getElementById('rTargetNet').value, 10) || 0);
+      const pattern = document.getElementById('rPatFixed').checked ? 'fixed' : 'auto';
+      const fixedGradeNum = parseInt(document.getElementById('rFixedStd').value, 10) || 22;
+      const age = parseInt(document.getElementById('rAge').value, 10) || 0;
+      const deps = parseInt(document.getElementById('rDeps').value, 10) || 0;
+      const hasEmp = document.getElementById('rEmpYes').checked;
+      const industry = document.getElementById('rIndustry').value;
+      const taxCol = document.getElementById('rTaxCol').value;
+      const commute = parseInt(document.getElementById('rCommute').value, 10) || 0;
+      const residentTax = parseInt(document.getElementById('rResident').value, 10) || 0;
+
+      document.getElementById('rAgeBadge').textContent = getAgeStatusText(age);
+      document.getElementById('rPatAutoCard').classList.toggle('selected', pattern === 'auto');
+      document.getElementById('rPatFixedCard').classList.toggle('selected', pattern === 'fixed');
+      document.getElementById('rEmpYesCard').classList.toggle('selected', hasEmp);
+      document.getElementById('rEmpNoCard').classList.toggle('selected', !hasEmp);
+      document.getElementById('rEmpIndustryWrap').classList.toggle('hidden', !hasEmp);
+
+      const baseParams = { commute, age, deps, hasEmp, industry, taxCol, residentTax };
+      const autoSol = reverseCalculateAuto(targetNet, baseParams);
+      const fixedSol = reverseCalculateFixed(targetNet, baseParams, fixedGradeNum);
+
+      const activeSol = pattern === 'auto' ? autoSol : fixedSol;
+      const res = activeSol.result;
+      lastReverseResult = { pattern, targetNet, activeSol, res };
+
+      // Header Banner
+      document.getElementById('rModePill').textContent = pattern === 'auto'
+        ? 'パターンB：標準報酬月額も自動計算'
+        : `パターンA：現在の標準報酬月額（${res.healthGrade.std.toLocaleString()}円）で固定`;
+
+      const statusEl = document.getElementById('rExactStatus');
+      const diff = res.netPay - targetNet;
+      if (activeSol.exact) {
+        statusEl.textContent = '目標手取りに厳密一致（差額 0円）';
+        statusEl.className = 'text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/30';
+      } else {
+        statusEl.textContent = `等級・税額表の段差により最寄り候補（${diff >= 0 ? '+' : ''}${diff.toLocaleString()}円）`;
+        statusEl.className = 'text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-200 border border-amber-400/30';
+      }
+
+      document.getElementById('rOutGross').textContent = fmtYen(res.grossTaxable);
+      document.getElementById('rOutActualNet').textContent = fmtYen(res.netPay);
+      document.getElementById('rOutDiff').textContent = `目標差額 ${diff >= 0 ? '+' : ''}${diff.toLocaleString()}円`;
+      document.getElementById('rOutTotalDed').textContent = fmtYen(res.totalDeductions);
+      document.getElementById('rOutStdInfo').textContent = `標準報酬月額 ${res.healthGrade.std.toLocaleString()}円（${res.healthGrade.grade}等級）`;
+      document.getElementById('rTaxBracketBadge').textContent = res.taxBracketLabel;
+
+      // Note box for boundary steps or alternate grade matches
+      const noteEl = document.getElementById('rNoteBox');
+      const notes = [];
+      if (!activeSol.exact && activeSol.bestUnder && activeSol.bestOver) {
+        notes.push(`税額表や標準報酬月額等級の境界段差により、手取り ${fmtYen(targetNet)} ちょうどになる1円単位の支給額が存在しません。目標以上の最小支給額（${fmtYen(activeSol.bestOver.grossTaxable)} → 手取り ${fmtYen(activeSol.bestOver.netPay)}）を表示しています。目標未満の最寄りは支給額 ${fmtYen(activeSol.bestUnder.grossTaxable)}（手取り ${fmtYen(activeSol.bestUnder.netPay)}）です。`);
+      }
+      if (pattern === 'auto' && activeSol.altMatches && activeSol.altMatches.length > 0) {
+        const alt = activeSol.altMatches[0];
+        notes.push(`標準報酬月額の等級段差により、別等級でも同じ手取りになる支給額（${fmtYen(alt.grossTaxable)}・${alt.healthGrade.grade}等級）が存在するため、より支給額が少ない候補を表示しています。`);
+      }
+      if (notes.length > 0) {
+        noteEl.textContent = notes.join(' ');
+        noteEl.classList.remove('hidden');
+      } else {
+        noteEl.classList.add('hidden');
+      }
+
+      // Comparison Cards
+      document.getElementById('rCmpAutoGross').textContent = fmtYen(autoSol.result.grossTaxable);
+      document.getElementById('rCmpAutoMeta').textContent = `${autoSol.result.healthGrade.grade}等級（${autoSol.result.healthGrade.std.toLocaleString()}円） / 控除 ${fmtYen(autoSol.result.totalDeductions)}`;
+      document.getElementById('rCmpFixedGross').textContent = fmtYen(fixedSol.result.grossTaxable);
+      document.getElementById('rCmpFixedMeta').textContent = `${fixedSol.result.healthGrade.grade}等級（${fixedSol.result.healthGrade.std.toLocaleString()}円） / 控除 ${fmtYen(fixedSol.result.totalDeductions)}`;
+
+      document.getElementById('rCmpAutoCard').classList.toggle('border-blue-500', pattern === 'auto');
+      document.getElementById('rCmpAutoCard').classList.toggle('bg-blue-50/40', pattern === 'auto');
+      document.getElementById('rCmpFixedCard').classList.toggle('border-blue-500', pattern === 'fixed');
+      document.getElementById('rCmpFixedCard').classList.toggle('bg-blue-50/40', pattern === 'fixed');
+      document.getElementById('rCmpAutoTag').classList.toggle('hidden', pattern !== 'auto');
+      document.getElementById('rCmpFixedTag').classList.toggle('hidden', pattern !== 'fixed');
+
+      const grossDiff = autoSol.result.grossTaxable - fixedSol.result.grossTaxable;
+      document.getElementById('rCmpDiffBadge').textContent = grossDiff === 0
+        ? '両パターンの支給額は一致'
+        : `自動計算は固定比 ${grossDiff > 0 ? '+' : ''}${grossDiff.toLocaleString()}円`;
+
+      renderBreakdownRows(document.getElementById('rBreakdownBody'), res, false);
+      rChartInstance = renderDoughnut('rChart', rChartInstance, res);
+    }
+
+    function updateRefTaxLookup() {
+      const amt = Math.max(0, parseInt(document.getElementById('refTaxInput').value, 10) || 0);
+      const cols = [0, 1, 2, 3, 4, 5, 6, 7].map(d => calcIncomeTaxR8(amt, d, 'kou'));
+      const otsu = calcIncomeTaxR8(amt, 0, 'otsu');
+      const rangeLabel = cols[0].bracketLabel.replace(/^甲欄（扶養0人）：/, '');
+
+      document.getElementById('refTaxResult').innerHTML = `
+        <div class="text-xs font-semibold text-blue-700 mb-2">該当区分：${rangeLabel}</div>
+        <table class="w-full text-xs border border-slate-200 rounded-xl overflow-hidden tabular-nums">
+          <thead class="bg-slate-50 text-slate-600 border-b border-slate-200">
+            <tr>
+              <th class="px-2.5 py-2 text-right">甲 0人</th>
+              <th class="px-2.5 py-2 text-right">甲 1人</th>
+              <th class="px-2.5 py-2 text-right">甲 2人</th>
+              <th class="px-2.5 py-2 text-right">甲 3人</th>
+              <th class="px-2.5 py-2 text-right">甲 4人</th>
+              <th class="px-2.5 py-2 text-right">甲 5人</th>
+              <th class="px-2.5 py-2 text-right">甲 6人</th>
+              <th class="px-2.5 py-2 text-right">甲 7人</th>
+              <th class="px-2.5 py-2 text-right bg-amber-50 text-amber-800">乙欄</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="font-bold text-slate-900 bg-white">
+              ${cols.map(c => `<td class="px-2.5 py-2.5 text-right">${fmtYen(c.tax)}</td>`).join('')}
+              <td class="px-2.5 py-2.5 text-right bg-amber-50/50 text-amber-900">${fmtYen(otsu.tax)}</td>
+            </tr>
+          </tbody>
+        </table>
+      `;
+    }
+
+    function renderRefGrades(filterText) {
+      const q = (filterText || '').trim().replace(/,/g, '');
+      const list = SHIZUOKA_GRADES.filter(g => {
+        if (!q) return true;
+        return String(g.grade).includes(q) || String(g.std).includes(q) || String(g.lo).includes(q);
+      });
+      document.getElementById('refGradeBody').innerHTML = list.map(g => {
+        const range = g.hi === null ? `${g.lo.toLocaleString()}円以上` : `${g.lo.toLocaleString()}〜${(g.hi - 1).toLocaleString()}円`;
+        const pg = g.pGrade ? `(${g.pGrade})` : '';
+        const nenkinStr = g.nenkinHalf !== null ? fmtYen(round50Sen(g.nenkinHalf)) : (g.grade < 4 ? '8,052円(下限)' : '59,475円(上限)');
+        return `
+          <tr class="hover:bg-slate-50">
+            <td class="px-4 py-2 font-semibold text-slate-800">${g.grade}${pg}</td>
+            <td class="px-3 py-2 text-right font-bold text-slate-900">${g.std.toLocaleString()}円</td>
+            <td class="px-3 py-2 text-center text-slate-600">${range}</td>
+            <td class="px-3 py-2 text-right text-slate-800">${fmtYen(round50Sen(g.kenpoHalf))}</td>
+            <td class="px-3 py-2 text-right text-slate-800">${fmtYen(round50Sen(g.kaigoTotalHalf))}</td>
+            <td class="px-3 py-2 text-right text-teal-700 font-medium">${fmtYen(round50Sen(g.kodomoHalf))}</td>
+            <td class="px-4 py-2 text-right text-slate-800">${nenkinStr}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function switchTab(tabName) {
+      const map = {
+        forward: ['tabBtnForward', 'panelForward'],
+        reverse: ['tabBtnReverse', 'panelReverse'],
+        ref:     ['tabBtnRef',     'panelRef']
+      };
+      Object.keys(map).forEach(k => {
+        const [btnId, panelId] = map[k];
+        const isActive = k === tabName;
+        const btn = document.getElementById(btnId);
+        const panel = document.getElementById(panelId);
+        btn.classList.toggle('active', isActive);
+        btn.classList.toggle('text-slate-600', !isActive);
+        btn.setAttribute('aria-selected', String(isActive));
+        panel.classList.toggle('hidden', !isActive);
+      });
+      if (tabName === 'forward') updateForward();
+      if (tabName === 'reverse') updateReverse();
+    }
+
+    function formatSummaryText(title, res) {
+      return [
+        `【${title}（令和8年度・協会けんぽ静岡）】`,
+        `総支給額: ${fmtYen(res.totalGross)}（課税支給額: ${fmtYen(res.grossTaxable)}）`,
+        `標準報酬月額: ${res.healthGrade.std.toLocaleString()}円（${res.healthGrade.grade}等級）`,
+        `健康保険料: ${fmtYen(res.kenpoBase)}`,
+        `介護保険料: ${fmtYen(res.kaigoPart)}`,
+        `厚生年金保険料: ${fmtYen(res.nenkin)}`,
+        `子ども・子育て支援金: ${fmtYen(res.kodomo)}`,
+        `雇用保険料: ${fmtYen(res.koyou)}`,
+        `源泉所得税: ${fmtYen(res.incomeTax)}（${res.taxBracketLabel}）`,
+        res.residentTax > 0 ? `住民税: ${fmtYen(res.residentTax)}` : null,
+        `控除合計: ${fmtYen(res.totalDeductions)}`,
+        `差引支給額（手取り）: ${fmtYen(res.netPay)}`
+      ].filter(Boolean).join('\n');
+    }
+
+    // =========================================================================
+    // 5. EVENT BINDINGS & INIT
+    // =========================================================================
+    document.addEventListener('DOMContentLoaded', () => {
+      populateGradeSelects();
+      renderRefGrades('');
+      updateRefTaxLookup();
+
+      // Tab buttons
+      document.getElementById('tabBtnForward').addEventListener('click', () => switchTab('forward'));
+      document.getElementById('tabBtnReverse').addEventListener('click', () => switchTab('reverse'));
+      document.getElementById('tabBtnRef').addEventListener('click', () => switchTab('ref'));
+
+      // Forward inputs
+      ['fGross', 'fAge', 'fDeps', 'fIndustry', 'fStdSelect', 'fTaxCol', 'fCommute', 'fResident'].forEach(id => {
+        document.getElementById(id).addEventListener('input', updateForward);
+        document.getElementById(id).addEventListener('change', updateForward);
+      });
+      ['fEmpYes', 'fEmpNo', 'fStdAuto', 'fStdManual', 'fShowEmployer'].forEach(id => {
+        document.getElementById(id).addEventListener('change', updateForward);
+      });
+      document.querySelectorAll('[data-f-preset]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.getElementById('fGross').value = btn.getAttribute('data-f-preset');
+          updateForward();
+        });
+      });
+      document.getElementById('fAdvToggle').addEventListener('click', () => {
+        const body = document.getElementById('fAdvBody');
+        body.classList.toggle('hidden');
+        document.getElementById('fAdvIcon').textContent = body.classList.contains('hidden') ? '▼' : '▲';
+      });
+      document.getElementById('btnResetForward').addEventListener('click', () => {
+        document.getElementById('fGross').value = 300000;
+        document.getElementById('fAge').value = 35;
+        document.getElementById('fDeps').value = 0;
+        document.getElementById('fEmpYes').checked = true;
+        document.getElementById('fIndustry').value = 'general';
+        document.getElementById('fStdAuto').checked = true;
+        document.getElementById('fTaxCol').value = 'kou';
+        document.getElementById('fCommute').value = 0;
+        document.getElementById('fResident').value = 0;
+        updateForward();
+      });
+      document.getElementById('btnCopyForward').addEventListener('click', () => {
+        if (lastForwardResult) copyText(formatSummaryText('給与計算結果', lastForwardResult));
+      });
+
+      // Reverse inputs
+      ['rTargetNet', 'rFixedStd', 'rAge', 'rDeps', 'rIndustry', 'rTaxCol', 'rCommute', 'rResident'].forEach(id => {
+        document.getElementById(id).addEventListener('input', updateReverse);
+        document.getElementById(id).addEventListener('change', updateReverse);
+      });
+      ['rPatAuto', 'rPatFixed', 'rEmpYes', 'rEmpNo'].forEach(id => {
+        document.getElementById(id).addEventListener('change', updateReverse);
+      });
+      document.querySelectorAll('[data-r-preset]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.getElementById('rTargetNet').value = btn.getAttribute('data-r-preset');
+          updateReverse();
+        });
+      });
+      document.getElementById('rCmpAutoCard').addEventListener('click', () => {
+        document.getElementById('rPatAuto').checked = true;
+        updateReverse();
+      });
+      document.getElementById('rCmpFixedCard').addEventListener('click', () => {
+        document.getElementById('rPatFixed').checked = true;
+        updateReverse();
+      });
+      document.getElementById('rAdvToggle').addEventListener('click', () => {
+        const body = document.getElementById('rAdvBody');
+        body.classList.toggle('hidden');
+        document.getElementById('rAdvIcon').textContent = body.classList.contains('hidden') ? '▼' : '▲';
+      });
+      document.getElementById('btnResetReverse').addEventListener('click', () => {
+        document.getElementById('rTargetNet').value = 240000;
+        document.getElementById('rPatAuto').checked = true;
+        document.getElementById('rFixedStd').value = '22';
+        document.getElementById('rAge').value = 35;
+        document.getElementById('rDeps').value = 0;
+        document.getElementById('rEmpYes').checked = true;
+        document.getElementById('rIndustry').value = 'general';
+        document.getElementById('rTaxCol').value = 'kou';
+        document.getElementById('rCommute').value = 0;
+        document.getElementById('rResident').value = 0;
+        updateReverse();
+      });
+      document.getElementById('btnApplyToForward').addEventListener('click', () => {
+        if (!lastReverseResult) return;
+        const r = lastReverseResult.res;
+        document.getElementById('fGross').value = r.grossTaxable;
+        document.getElementById('fAge').value = document.getElementById('rAge').value;
+        document.getElementById('fDeps').value = document.getElementById('rDeps').value;
+        document.getElementById('fEmpYes').checked = document.getElementById('rEmpYes').checked;
+        document.getElementById('fEmpNo').checked = document.getElementById('rEmpNo').checked;
+        document.getElementById('fIndustry').value = document.getElementById('rIndustry').value;
+        document.getElementById('fTaxCol').value = document.getElementById('rTaxCol').value;
+        document.getElementById('fCommute').value = document.getElementById('rCommute').value;
+        document.getElementById('fResident').value = document.getElementById('rResident').value;
+        if (lastReverseResult.pattern === 'fixed') {
+          document.getElementById('fStdManual').checked = true;
+          document.getElementById('fStdSelect').value = String(r.healthGrade.grade);
+        } else {
+          document.getElementById('fStdAuto').checked = true;
+        }
+        switchTab('forward');
+        showToast('逆算結果を順計算タブに転記しました');
+      });
+      document.getElementById('btnCopyReverse').addEventListener('click', () => {
+        if (lastReverseResult) {
+          const title = lastReverseResult.pattern === 'auto' ? '手取り逆算（標準報酬月額自動）' : '手取り逆算（標準報酬月額固定）';
+          copyText(formatSummaryText(title, lastReverseResult.res));
+        }
+      });
+
+      // Reference tab inputs
+      document.getElementById('refTaxInput').addEventListener('input', updateRefTaxLookup);
+      document.getElementById('refGradeFilter').addEventListener('input', (e) => renderRefGrades(e.target.value));
+
+      // Initial render
+      updateForward();
+      updateReverse();
+    });
+  </script>
+</body>
+</html>
