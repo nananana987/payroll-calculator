@@ -809,27 +809,53 @@
         else hi = mid;
       }
 
-      const scanLo = Math.max(gMin, lo - 18000);
-      const scanHi = Math.min(gMax, lo + 18000);
+      const scanLo = Math.max(gMin, lo - 12000);
+      const scanHi = Math.min(gMax, lo + 12000);
 
       let exactFirst = null;
       let exactCount = 0;
       let bestOver = null;  // netPay >= targetNet, smallest diff
       let bestUnder = null; // netPay < targetNet, smallest diff
 
-      for (let g = scanLo; g <= scanHi; g++) {
-        const res = calculatePayroll({ ...baseParams, gross: g, fixedGrade: fixedGradeNum });
-        const diff = res.netPay - targetNet;
-        if (diff === 0) {
-          if (!exactFirst) exactFirst = res;
-          exactCount++;
-        } else if (diff > 0) {
-          if (!bestOver || diff < (bestOver.netPay - targetNet) || (diff === (bestOver.netPay - targetNet) && g < bestOver.grossTaxable)) {
-            bestOver = res;
+      // 2段階探索: まず200円刻みで候補区間を絞り込み、該当区間のみ1円単位で厳密走査する
+      const STEP = 200;
+      const windows = [];
+      for (let wg = scanLo; wg <= scanHi; wg += STEP) {
+        const wEnd = Math.min(scanHi, wg + STEP - 1);
+        const rStart = calculatePayroll({ ...baseParams, gross: wg, fixedGrade: fixedGradeNum });
+        const rEnd = wEnd > wg ? calculatePayroll({ ...baseParams, gross: wEnd, fixedGrade: fixedGradeNum }) : rStart;
+        // 単調増加区間は厳密判定、税額表の段差を含む区間のみ余裕を持たせて精密走査
+        const isMonotonic = rEnd.netPay >= rStart.netPay;
+        if (isMonotonic) {
+          if (rStart.netPay <= targetNet + 50 && rEnd.netPay >= targetNet - 50) {
+            windows.push([wg, wEnd]);
           }
         } else {
-          if (!bestUnder || (-diff) < (targetNet - bestUnder.netPay)) {
-            bestUnder = res;
+          if (rStart.netPay + 250 >= targetNet - 50 && rEnd.netPay - 250 <= targetNet + 50) {
+            windows.push([wg, wEnd]);
+          }
+        }
+      }
+      if (windows.length === 0) {
+        windows.push([Math.max(gMin, lo - 500), Math.min(gMax, lo + 500)]);
+      }
+
+      for (let wi = 0; wi < windows.length; wi++) {
+        const [wStart, wEnd] = windows[wi];
+        for (let g = wStart; g <= wEnd; g++) {
+          const res = calculatePayroll({ ...baseParams, gross: g, fixedGrade: fixedGradeNum });
+          const diff = res.netPay - targetNet;
+          if (diff === 0) {
+            if (!exactFirst) exactFirst = res;
+            exactCount++;
+          } else if (diff > 0) {
+            if (!bestOver || diff < (bestOver.netPay - targetNet) || (diff === (bestOver.netPay - targetNet) && g < bestOver.grossTaxable)) {
+              bestOver = res;
+            }
+          } else {
+            if (!bestUnder || (-diff) < (targetNet - bestUnder.netPay)) {
+              bestUnder = res;
+            }
           }
         }
       }
@@ -1095,6 +1121,7 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          animation: { duration: 150 },
           cutout: '62%',
           plugins: {
             legend: {
